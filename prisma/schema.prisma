@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Patient {
+  id            Int            @id @default(autoincrement())
+  studentId     String         @unique
+  firstName     String
+  middleName    String?
+  lastName      String
+  dateOfBirth   DateTime?
+  age           Int?
+  sex           String?
+  grade         String?
+  section       String?
+  contactNumber String?
+  address       String?
+
+  clinicRecords ClinicRecord[]
+  documents     Document[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model ClinicRecord {
+  id             Int      @id @default(autoincrement())
+  patientId      Int
+  visitDate      DateTime
+  chiefComplaint String?
+  symptoms       String?
+  temperature    String?
+  bloodPressure  String?
+  diagnosis      String?
+  treatment      String?
+  medication     String?
+  remarks        String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id               Int        @id @default(autoincrement())
+  patientId        Int
+  fileName         String
+  fileType         String
+  fileSize         Int?
+  filePath         String?
+  documentType     String?
+  processingMethod String?
+
+  ocrResult        OCRResult?
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  patient          Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model OCRResult {
+  id               Int        @id @default(autoincrement())
+  documentId       Int        @unique
+  originalText     String
+  correctedText    String
+  confidence       Float?
+  status           String     @default("REVIEW")
+  processingMethod String?
+  correctedAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  document         Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
