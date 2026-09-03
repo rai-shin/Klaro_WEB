@@ -28,28 +28,20 @@ type OCRCandidate = {
   name: string;
   psm: PSM;
   imagePath: string;
-
   text: string;
   rawText: string;
-
   words: OCRWord[];
-
   tesseractConfidence: number;
   confidence: number;
-
   tokenCount: number;
   meaningfulWordCount: number;
-
   coverage: number;
   horizontalCoverage: number;
   verticalCoverage: number;
-
   lineCount: number;
   garbageRatio: number;
-
   quality: number;
   score: number;
-
   suspicious: boolean;
 };
 
@@ -124,9 +116,7 @@ const CORRECTIONS: Record<string, string> = {
   respiratry: "respiratory",
 
   emergncy: "emergency",
-
   hospitl: "hospital",
-
   clinlc: "clinic",
 
   he1p: "help",
@@ -196,11 +186,20 @@ const ALLOW_SHORT_WORDS = new Set([
 |--------------------------------------------------------------------------
 */
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
+function clamp(
+  value: number,
+  min: number,
+  max: number
+) {
+  return Math.max(
+    min,
+    Math.min(max, value)
+  );
 }
 
-function normalizeWhitespace(text: string) {
+function normalizeWhitespace(
+  text: string
+) {
   return text
     .replace(/\r/g, "")
     .replace(/[ \t]+/g, " ")
@@ -208,14 +207,24 @@ function normalizeWhitespace(text: string) {
     .trim();
 }
 
-function normalizeToken(token: string) {
+function normalizeToken(
+  token: string
+) {
   return token
     .trim()
-    .replace(/^[^A-Za-z0-9/%:.'-]+/, "")
-    .replace(/[^A-Za-z0-9/%:.'-]+$/, "");
+    .replace(
+      /^[^A-Za-z0-9/%:.'-]+/,
+      ""
+    )
+    .replace(
+      /[^A-Za-z0-9/%:.'-]+$/,
+      ""
+    );
 }
 
-function cleanOCRText(text: string) {
+function cleanOCRText(
+  text: string
+) {
   if (!text) {
     return "";
   }
@@ -233,7 +242,9 @@ function cleanOCRText(text: string) {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  return normalizeWhitespace(lines.join("\n"));
+  return normalizeWhitespace(
+    lines.join("\n")
+  );
 }
 
 /*
@@ -252,9 +263,12 @@ function isProbablyGarbage(
     return true;
   }
 
-  const lower = value.toLowerCase();
+  const lower =
+    value.toLowerCase();
 
-  if (ALLOW_SHORT_WORDS.has(lower)) {
+  if (
+    ALLOW_SHORT_WORDS.has(lower)
+  ) {
     return false;
   }
 
@@ -262,25 +276,44 @@ function isProbablyGarbage(
     return true;
   }
 
-  if (/^[^A-Za-z0-9]+$/.test(value)) {
+  if (
+    /^[^A-Za-z0-9]+$/.test(value)
+  ) {
     return true;
   }
 
   const alphaNumeric =
-    (value.match(/[A-Za-z0-9]/g) || []).length;
+    (
+      value.match(
+        /[A-Za-z0-9]/g
+      ) || []
+    ).length;
 
   const strange =
-    (value.match(/[^A-Za-z0-9/%:.'-]/g) || []).length;
+    (
+      value.match(
+        /[^A-Za-z0-9/%:.'-]/g
+      ) || []
+    ).length;
 
-  if (value.length >= 3 && strange > alphaNumeric) {
+  if (
+    value.length >= 3 &&
+    strange > alphaNumeric
+  ) {
     return true;
   }
 
-  if (/(.)\1{3,}/.test(value)) {
+  if (
+    /(.)\1{3,}/.test(value)
+  ) {
     return true;
   }
 
-  if (/^[_|~`^=*\-]{2,}$/.test(value)) {
+  if (
+    /^[_|~`^=\-*\\-]{2,}$/.test(
+      value
+    )
+  ) {
     return true;
   }
 
@@ -296,7 +329,11 @@ function isProbablyGarbage(
     return true;
   }
 
-  if (/^[{}[\]()<>()\\/]+/.test(value)) {
+  if (
+    /^[{}\[\]()<>()\\\/]+/.test(
+      value
+    )
+  ) {
     return true;
   }
 
@@ -317,8 +354,11 @@ function isProbablyGarbage(
 |--------------------------------------------------------------------------
 */
 
-function applyCorrection(token: string) {
-  const normalized = normalizeToken(token);
+function applyCorrection(
+  token: string
+) {
+  const normalized =
+    normalizeToken(token);
 
   if (!normalized) {
     return {
@@ -328,9 +368,11 @@ function applyCorrection(token: string) {
     };
   }
 
-  const lower = normalized.toLowerCase();
+  const lower =
+    normalized.toLowerCase();
 
-  const correction = CORRECTIONS[lower];
+  const correction =
+    CORRECTIONS[lower];
 
   if (!correction) {
     return {
@@ -342,10 +384,15 @@ function applyCorrection(token: string) {
 
   let corrected = correction;
 
-  if (normalized === normalized.toUpperCase()) {
-    corrected = correction.toUpperCase();
+  if (
+    normalized ===
+    normalized.toUpperCase()
+  ) {
+    corrected =
+      correction.toUpperCase();
   } else if (
-    normalized[0] === normalized[0].toUpperCase()
+    normalized[0] ===
+    normalized[0].toUpperCase()
   ) {
     corrected =
       correction.charAt(0).toUpperCase() +
@@ -379,35 +426,67 @@ function parseHOCR(
   const regex =
     /<span[^>]*class=['"][^'"]*(?:ocrx_word|ocr_word)[^'"]*['"][^>]*title=['"]([^'"]*)['"][^>]*>([\s\S]*?)<\/span>/gi;
 
-  let match: RegExpExecArray | null;
+  let match:
+    RegExpExecArray | null;
 
-  while ((match = regex.exec(hocr)) !== null) {
-    const title = match[1] || "";
-    const htmlText = match[2] || "";
+  while (
+    (match = regex.exec(hocr)) !==
+    null
+  ) {
+    const title =
+      match[1] || "";
 
-    const text = htmlText
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .trim();
+    const htmlText =
+      match[2] || "";
+
+    const text =
+      htmlText
+        .replace(
+          /<[^>]+>/g,
+          " "
+        )
+        .replace(
+          /&nbsp;/gi,
+          " "
+        )
+        .replace(
+          /&amp;/gi,
+          "&"
+        )
+        .replace(
+          /&lt;/gi,
+          "<"
+        )
+        .replace(
+          /&gt;/gi,
+          ">"
+        )
+        .trim();
 
     if (!text) {
       continue;
     }
 
-    const bboxMatch = title.match(
-      /bbox\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)/i
-    );
+    const bboxMatch =
+      title.match(
+        /bbox\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)/i
+      );
 
-    const confidenceMatch = title.match(
-      /x_wconf\s+([\d.]+)/i
-    );
+    const confidenceMatch =
+      title.match(
+        /x_wconf\s+([\d.]+)/i
+      );
 
-    const confidence = confidenceMatch
-      ? clamp(Number(confidenceMatch[1]), 0, 100)
-      : 0;
+    const confidence =
+      confidenceMatch
+        ? clamp(
+            Number(
+              confidenceMatch[1]
+            ),
+            0,
+            100
+          )
+        : 0;
 
     let bbox:
       | {
@@ -421,41 +500,61 @@ function parseHOCR(
     if (bboxMatch) {
       bbox = {
         x0: clamp(
-          Number(bboxMatch[1]),
+          Number(
+            bboxMatch[1]
+          ),
           0,
           imageWidth
         ),
         y0: clamp(
-          Number(bboxMatch[2]),
+          Number(
+            bboxMatch[2]
+          ),
           0,
           imageHeight
         ),
         x1: clamp(
-          Number(bboxMatch[3]),
+          Number(
+            bboxMatch[3]
+          ),
           0,
           imageWidth
         ),
         y1: clamp(
-          Number(bboxMatch[4]),
+          Number(
+            bboxMatch[4]
+          ),
           0,
           imageHeight
         ),
       };
     }
 
-    const correction = applyCorrection(text);
+    const correction =
+      applyCorrection(text);
 
     words.push({
-      text: correction.corrected,
-      original: correction.original,
-      corrected: correction.corrected,
+      text:
+        correction.corrected,
+
+      original:
+        correction.original,
+
+      corrected:
+        correction.corrected,
+
       confidence,
+
       flagged:
-        confidence < CONFIDENCE_THRESHOLD &&
+        confidence <
+          CONFIDENCE_THRESHOLD &&
         !correction.correctionApplied,
+
       correctionApplied:
         correction.correctionApplied,
+
       bbox,
+
       source: "hocr",
     });
   }
@@ -480,70 +579,106 @@ function parseTSV(
     return words;
   }
 
-  const lines = tsv.split(/\r?\n/);
+  const lines =
+    tsv.split(/\r?\n/);
 
   for (const line of lines) {
     if (!line.trim()) {
       continue;
     }
 
-    const parts = line.split("\t");
+    const parts =
+      line.split("\t");
 
     if (parts.length < 12) {
       continue;
     }
 
-    const level = Number(parts[0]);
+    const level =
+      Number(parts[0]);
 
     if (level !== 5) {
       continue;
     }
 
-    const left = Number(parts[6]);
-    const top = Number(parts[7]);
-    const width = Number(parts[8]);
-    const height = Number(parts[9]);
-    const confidence = clamp(
-      Number(parts[10]),
-      0,
-      100
-    );
+    const left =
+      Number(parts[6]);
 
-    const text = parts
-      .slice(11)
-      .join("\t")
-      .trim();
+    const top =
+      Number(parts[7]);
+
+    const width =
+      Number(parts[8]);
+
+    const height =
+      Number(parts[9]);
+
+    const confidence =
+      clamp(
+        Number(parts[10]),
+        0,
+        100
+      );
+
+    const text =
+      parts
+        .slice(11)
+        .join("\t")
+        .trim();
 
     if (!text) {
       continue;
     }
 
-    const correction = applyCorrection(text);
+    const correction =
+      applyCorrection(text);
 
     words.push({
-      text: correction.corrected,
-      original: correction.original,
-      corrected: correction.corrected,
+      text:
+        correction.corrected,
+
+      original:
+        correction.original,
+
+      corrected:
+        correction.corrected,
+
       confidence,
+
       flagged:
-        confidence < CONFIDENCE_THRESHOLD &&
+        confidence <
+          CONFIDENCE_THRESHOLD &&
         !correction.correctionApplied,
+
       correctionApplied:
         correction.correctionApplied,
+
       bbox: {
-        x0: clamp(left, 0, imageWidth),
-        y0: clamp(top, 0, imageHeight),
+        x0: clamp(
+          left,
+          0,
+          imageWidth
+        ),
+
+        y0: clamp(
+          top,
+          0,
+          imageHeight
+        ),
+
         x1: clamp(
           left + width,
           0,
           imageWidth
         ),
+
         y1: clamp(
           top + height,
           0,
           imageHeight
         ),
       },
+
       source: "tsv",
     });
   }
@@ -557,7 +692,9 @@ function parseTSV(
 |--------------------------------------------------------------------------
 */
 
-function deduplicateWords(words: OCRWord[]) {
+function deduplicateWords(
+  words: OCRWord[]
+) {
   const result: OCRWord[] = [];
 
   for (const word of words) {
@@ -568,35 +705,41 @@ function deduplicateWords(words: OCRWord[]) {
       continue;
     }
 
-    const duplicate = result.some(
-      (existing) => {
-        if (
-          existing.corrected.toLowerCase() !==
-          normalized
-        ) {
-          return false;
+    const duplicate =
+      result.some(
+        (existing) => {
+          if (
+            existing.corrected.toLowerCase() !==
+            normalized
+          ) {
+            return false;
+          }
+
+          if (
+            !existing.bbox ||
+            !word.bbox
+          ) {
+            return true;
+          }
+
+          const dx =
+            Math.abs(
+              existing.bbox.x0 -
+                word.bbox.x0
+            );
+
+          const dy =
+            Math.abs(
+              existing.bbox.y0 -
+                word.bbox.y0
+            );
+
+          return (
+            dx < 5 &&
+            dy < 5
+          );
         }
-
-        if (
-          !existing.bbox ||
-          !word.bbox
-        ) {
-          return true;
-        }
-
-        const dx = Math.abs(
-          existing.bbox.x0 -
-            word.bbox.x0
-        );
-
-        const dy = Math.abs(
-          existing.bbox.y0 -
-            word.bbox.y0
-        );
-
-        return dx < 5 && dy < 5;
-      }
-    );
+      );
 
     if (!duplicate) {
       result.push(word);
@@ -619,10 +762,13 @@ function buildTextFromWords(
     return "";
   }
 
-  const validWords = words.filter(
-    (word) =>
-      word.corrected.trim().length > 0
-  );
+  const validWords =
+    words.filter(
+      (word) =>
+        word.corrected
+          .trim()
+          .length > 0
+    );
 
   if (!validWords.length) {
     return "";
@@ -642,56 +788,73 @@ function buildTextFromWords(
   ) {
     return validWords
       .map(
-        (word) => word.corrected
+        (word) =>
+          word.corrected
       )
       .join(" ")
       .trim();
   }
 
-  const sorted = [...withBBox].sort(
-    (a, b) => {
-      const ay = a.bbox!.y0;
-      const by = b.bbox!.y0;
+  const sorted =
+    [...withBBox].sort(
+      (a, b) => {
+        const ay =
+          a.bbox!.y0;
 
-      if (Math.abs(ay - by) > 15) {
-        return ay - by;
-      }
+        const by =
+          b.bbox!.y0;
 
-      return (
-        a.bbox!.x0 -
-        b.bbox!.x0
-      );
-    }
-  );
-
-  const lines: OCRWord[][] = [];
-
-  for (const word of sorted) {
-    const y = word.bbox!.y0;
-
-    let targetLine =
-      lines.find((line) => {
-        if (!line.length) {
-          return false;
+        if (
+          Math.abs(
+            ay - by
+          ) > 15
+        ) {
+          return ay - by;
         }
 
-        const averageY =
-          line.reduce(
-            (sum, item) =>
-              sum + item.bbox!.y0,
-            0
-          ) / line.length;
-
         return (
-          Math.abs(
-            averageY - y
-          ) <= 18
+          a.bbox!.x0 -
+          b.bbox!.x0
         );
-      });
+      }
+    );
+
+  const lines: OCRWord[][] =
+    [];
+
+  for (const word of sorted) {
+    const y =
+      word.bbox!.y0;
+
+    let targetLine =
+      lines.find(
+        (line) => {
+          if (!line.length) {
+            return false;
+          }
+
+          const averageY =
+            line.reduce(
+              (sum, item) =>
+                sum +
+                item.bbox!.y0,
+              0
+            ) /
+            line.length;
+
+          return (
+            Math.abs(
+              averageY - y
+            ) <= 18
+          );
+        }
+      );
 
     if (!targetLine) {
       targetLine = [];
-      lines.push(targetLine);
+      lines.push(
+        targetLine
+      );
     }
 
     targetLine.push(word);
@@ -728,7 +891,8 @@ function calculateCandidateMetrics(
   imageHeight: number,
   tesseractConfidence: number
 ) {
-  const tokenCount = words.length;
+  const tokenCount =
+    words.length;
 
   const meaningfulWords =
     words.filter(
@@ -748,13 +912,15 @@ function calculateCandidateMetrics(
 
   const garbageRatio =
     tokenCount > 0
-      ? garbageCount / tokenCount
+      ? garbageCount /
+        tokenCount
       : 1;
 
   const confidences =
     meaningfulWords
       .map(
-        (word) => word.confidence
+        (word) =>
+          word.confidence
       )
       .filter((value) =>
         Number.isFinite(value)
@@ -766,13 +932,15 @@ function calculateCandidateMetrics(
           (sum, value) =>
             sum + value,
           0
-        ) / confidences.length
+        ) /
+        confidences.length
       : 0;
 
   const combinedConfidence =
     confidences.length > 0
       ? wordConfidence * 0.65 +
-        tesseractConfidence * 0.35
+        tesseractConfidence *
+          0.35
       : tesseractConfidence;
 
   let minX = imageWidth;
@@ -833,10 +1001,12 @@ function calculateCandidateMetrics(
         imageHeight);
 
     horizontalCoverage =
-      width / imageWidth;
+      width /
+      imageWidth;
 
     verticalCoverage =
-      height / imageHeight;
+      height /
+      imageHeight;
   }
 
   const lineCount =
@@ -845,7 +1015,8 @@ function calculateCandidateMetrics(
       .map((line) =>
         line.trim()
       )
-      .filter(Boolean).length;
+      .filter(Boolean)
+      .length;
 
   const garbagePenalty =
     garbageRatio * 55;
@@ -881,7 +1052,8 @@ function calculateCandidateMetrics(
     readableCharacters > 0
       ? Math.min(
           10,
-          readableCharacters / 30
+          readableCharacters /
+            30
         )
       : 0;
 
@@ -966,7 +1138,8 @@ function selectBestCandidate(
       (candidate) =>
         candidate.meaningfulWordCount >
           0 &&
-        candidate.text.trim()
+        candidate.text
+          .trim()
           .length > 0
     );
 
@@ -1125,8 +1298,7 @@ async function createImageVariants(
           : undefined,
 
       fit: "inside",
-      withoutEnlargement:
-        false,
+      withoutEnlargement: false,
     })
     .png()
     .toFile(
@@ -1168,8 +1340,7 @@ async function createImageVariants(
           : undefined,
 
       fit: "inside",
-      withoutEnlargement:
-        false,
+      withoutEnlargement: false,
     })
     .grayscale()
     .normalize()
@@ -1184,156 +1355,13 @@ async function createImageVariants(
   });
 
   /*
-   * SHARPENED
+   * The following preprocessing variants are
+   * intentionally NOT generated for the Vercel
+   * serverless OCR request.
+   *
+   * This reduces processing time and prevents
+   * FUNCTION_INVOCATION_TIMEOUT.
    */
-
-  const sharpenPath =
-    path.join(
-      workDir,
-      "sharpened.png"
-    );
-
-  await sharp(inputPath)
-    .rotate()
-    .resize({
-      width:
-        originalWidth > 0
-          ? Math.round(
-              originalWidth *
-                scale
-            )
-          : undefined,
-
-      height:
-        originalHeight > 0
-          ? Math.round(
-              originalHeight *
-                scale
-            )
-          : undefined,
-
-      fit: "inside",
-      withoutEnlargement:
-        false,
-    })
-    .grayscale()
-    .normalize()
-    .sharpen({
-      sigma: 1.2,
-      m1: 0.8,
-      m2: 1.2,
-      x1: 2,
-      y2: 10,
-      y3: 20,
-    })
-    .png()
-    .toFile(
-      sharpenPath
-    );
-
-  variants.push({
-    name: "SHARPENED",
-    path: sharpenPath,
-  });
-
-  /*
-   * STRONG SHARPEN
-   */
-
-  const strongSharpenPath =
-    path.join(
-      workDir,
-      "strong-sharpened.png"
-    );
-
-  await sharp(inputPath)
-    .rotate()
-    .resize({
-      width:
-        originalWidth > 0
-          ? Math.round(
-              originalWidth *
-                scale
-            )
-          : undefined,
-
-      height:
-        originalHeight > 0
-          ? Math.round(
-              originalHeight *
-                scale
-            )
-          : undefined,
-
-      fit: "inside",
-      withoutEnlargement:
-        false,
-    })
-    .grayscale()
-    .normalize()
-    .sharpen({
-      sigma: 2,
-      m1: 1,
-      m2: 1.5,
-      x1: 2,
-      y2: 10,
-      y3: 20,
-    })
-    .png()
-    .toFile(
-      strongSharpenPath
-    );
-
-  variants.push({
-    name: "STRONG SHARPEN",
-    path: strongSharpenPath,
-  });
-
-  /*
-   * HIGH CONTRAST
-   */
-
-  const contrastPath =
-    path.join(
-      workDir,
-      "contrast.png"
-    );
-
-  await sharp(inputPath)
-    .rotate()
-    .resize({
-      width:
-        originalWidth > 0
-          ? Math.round(
-              originalWidth *
-                scale
-            )
-          : undefined,
-
-      height:
-        originalHeight > 0
-          ? Math.round(
-              originalHeight *
-                scale
-            )
-          : undefined,
-
-      fit: "inside",
-      withoutEnlargement:
-        false,
-    })
-    .grayscale()
-    .normalize()
-    .linear(1.25, -20)
-    .png()
-    .toFile(
-      contrastPath
-    );
-
-  variants.push({
-    name: "HIGH CONTRAST",
-    path: contrastPath,
-  });
 
   return variants;
 }
@@ -1378,7 +1406,8 @@ async function recognizeImage(
       }
     );
 
-  const data = result.data as any;
+  const data =
+    result.data as any;
 
   const imageMetadata =
     await sharp(
@@ -1392,7 +1421,8 @@ async function recognizeImage(
     imageMetadata.height || 1;
 
   const rawText =
-    typeof data.text === "string"
+    typeof data.text ===
+    "string"
       ? data.text
       : "";
 
@@ -1402,7 +1432,8 @@ async function recognizeImage(
 
   const hocrWords =
     parseHOCR(
-      typeof data.hocr === "string"
+      typeof data.hocr ===
+        "string"
         ? data.hocr
         : "",
       imageWidth,
@@ -1411,7 +1442,8 @@ async function recognizeImage(
 
   const tsvWords =
     parseTSV(
-      typeof data.tsv === "string"
+      typeof data.tsv ===
+        "string"
         ? data.tsv
         : "",
       imageWidth,
@@ -1499,7 +1531,8 @@ async function recognizeImage(
 
   const text =
     words.length > 0 &&
-    reconstructedText.trim()
+    reconstructedText
+      .trim()
       .length > 0
       ? reconstructedText
       : cleanedRawText;
@@ -1507,7 +1540,8 @@ async function recognizeImage(
   const tesseractConfidence =
     clamp(
       Number(
-        data.confidence || 0
+        data.confidence ||
+          0
       ),
       0,
       100
@@ -1526,14 +1560,10 @@ async function recognizeImage(
     name: variantName,
     psm,
     imagePath,
-
     text,
     rawText: cleanedRawText,
-
     words,
-
     tesseractConfidence,
-
     ...metrics,
   } satisfies OCRCandidate;
 }
@@ -1656,7 +1686,11 @@ export async function POST(
     );
 
     /*
-     * Create preprocessing variants.
+     * Create only the OCR variants
+     * needed for Vercel.
+     *
+     * ORIGINAL
+     * GRAYSCALE
      */
 
     const variants =
@@ -1668,7 +1702,8 @@ export async function POST(
     /*
      * Tesseract worker path.
      *
-     * This avoids the Turbopack virtual-path problem.
+     * This avoids the Turbopack
+     * virtual-path problem.
      */
 
     const workerPath =
@@ -1726,17 +1761,44 @@ export async function POST(
      * OCR candidates
      * ---------------------------------------------------------------
      *
-     * AUTO is the primary mode.
-     * SINGLE_BLOCK is secondary.
+     * IMPORTANT FOR VERCEL:
      *
-     * Every preprocessing version gets both.
+     * The previous implementation performed:
+     *
+     * 5 image variants
+     * ×
+     * 2 PSM modes
+     * =
+     * 10 Tesseract operations.
+     *
+     * That was causing:
+     *
+     * FUNCTION_INVOCATION_TIMEOUT
+     *
+     * on Vercel.
+     *
+     * We now use:
+     *
+     * 1. ORIGINAL / AUTO
+     * 2. GRAYSCALE / AUTO
+     *
+     * Total:
+     * 2 OCR operations.
      */
 
-    for (const variant of variants) {
-      /*
-       * AUTO
-       */
+    const selectedVariants =
+      variants.filter(
+        (variant) =>
+          variant.name ===
+            "ORIGINAL" ||
+          variant.name ===
+            "GRAYSCALE"
+      );
 
+    for (
+      const variant of
+        selectedVariants
+    ) {
       try {
         const candidate =
           await recognizeImage(
@@ -1767,41 +1829,6 @@ export async function POST(
           error
         );
       }
-
-      /*
-       * SINGLE BLOCK
-       */
-
-      try {
-        const candidate =
-          await recognizeImage(
-            worker,
-            variant.path,
-            PSM.SINGLE_BLOCK,
-            `${variant.name} / SINGLE BLOCK`
-          );
-
-        candidates.push(
-          candidate
-        );
-
-        console.log(
-          `[Klaro OCR] ${candidate.name}: ` +
-            `quality=${candidate.quality}, ` +
-            `tokens=${candidate.tokenCount}, ` +
-            `meaningful=${candidate.meaningfulWordCount}, ` +
-            `confidence=${candidate.tesseractConfidence}, ` +
-            `garbage=${candidate.garbageRatio.toFixed(
-              3
-            )}, ` +
-            `suspicious=${candidate.suspicious}`
-        );
-      } catch (error) {
-        console.error(
-          `[Klaro OCR] ${variant.name} SINGLE BLOCK failed:`,
-          error
-        );
-      }
     }
 
     if (
@@ -1822,7 +1849,10 @@ export async function POST(
       "[Klaro OCR] Candidate comparison:"
     );
 
-    for (const candidate of candidates) {
+    for (
+      const candidate of
+        candidates
+    ) {
       console.log(
         `${candidate.name}: ` +
           `quality=${candidate.quality}, ` +
@@ -1909,7 +1939,8 @@ export async function POST(
 
             bbox: word.bbox,
 
-            source: word.source,
+            source:
+              word.source,
           };
         }
       );
@@ -2142,7 +2173,7 @@ export async function POST(
 
       processing: {
         variantsTested:
-          variants.length,
+          selectedVariants.length,
 
         candidatesTested:
           candidates.length,
@@ -2150,13 +2181,10 @@ export async function POST(
         preprocessing: [
           "upscale",
           "grayscale",
-          "contrast normalization",
-          "sharpening",
         ],
 
         pageSegmentationModes: [
           "AUTO",
-          "SINGLE_BLOCK",
         ],
       },
     });
