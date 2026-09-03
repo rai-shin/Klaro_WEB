@@ -1,9 +1,42 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const search = request.nextUrl.searchParams.get("search")?.trim() || "";
+
     const patients = await prisma.patient.findMany({
+      where: search
+        ? {
+            OR: [
+              {
+                studentId: {
+                  contains: search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                firstName: {
+                  contains: search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                middleName: {
+                  contains: search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                lastName: {
+                  contains: search,
+                  mode: "insensitive",
+                },
+              },
+            ],
+          }
+        : undefined,
+
       orderBy: {
         createdAt: "desc",
       },
