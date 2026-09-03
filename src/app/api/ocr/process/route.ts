@@ -1573,12 +1573,10 @@ async function recognizeImage(
 | POST /api/ocr/process
 |--------------------------------------------------------------------------
 */
-
 export async function POST(
   request: NextRequest
 ) {
-  const startTime =
-    Date.now();
+  const startTime = Date.now();
 
   let workDir:
     | string
@@ -1592,9 +1590,33 @@ export async function POST(
       >
     | null = null;
 
+  const logTime = (
+    label: string
+  ) => {
+    console.log(
+      `[Klaro OCR TIMING] ${label}: ${
+        Date.now() - startTime
+      }ms`
+    );
+  };
+
   try {
+    console.log(
+      "[Klaro OCR TIMING] ===== OCR REQUEST START ====="
+    );
+
+    /*
+     * ---------------------------------------------------------------
+     * Receive request
+     * ---------------------------------------------------------------
+     */
+
     const formData =
       await request.formData();
+
+    logTime(
+      "request.formData() complete"
+    );
 
     const file =
       formData.get("file") ||
@@ -1613,8 +1635,22 @@ export async function POST(
       );
     }
 
+    console.log(
+      `[Klaro OCR TIMING] File received: ${file.name}`
+    );
+
+    console.log(
+      `[Klaro OCR TIMING] File type: ${file.type}`
+    );
+
+    console.log(
+      `[Klaro OCR TIMING] File size: ${file.size} bytes`
+    );
+
     /*
-     * Validate image.
+     * ---------------------------------------------------------------
+     * Validate image
+     * ---------------------------------------------------------------
      */
 
     if (
@@ -1658,7 +1694,9 @@ export async function POST(
     }
 
     /*
-     * Temporary working directory.
+     * ---------------------------------------------------------------
+     * Temporary working directory
+     * ---------------------------------------------------------------
      */
 
     workDir =
@@ -1668,6 +1706,10 @@ export async function POST(
           "klaro-ocr-"
         )
       );
+
+    logTime(
+      "temporary directory created"
+    );
 
     const inputPath =
       path.join(
@@ -1680,18 +1722,28 @@ export async function POST(
         await file.arrayBuffer()
       );
 
+    logTime(
+      "file converted to Buffer"
+    );
+
     await fs.writeFile(
       inputPath,
       buffer
     );
 
+    logTime(
+      "input image written to disk"
+    );
+
     /*
-     * Create only the OCR variants
-     * needed for Vercel.
-     *
-     * ORIGINAL
-     * GRAYSCALE
+     * ---------------------------------------------------------------
+     * Image preprocessing
+     * ---------------------------------------------------------------
      */
+
+    console.log(
+      "[Klaro OCR TIMING] Starting image preprocessing..."
+    );
 
     const variants =
       await createImageVariants(
@@ -1699,12 +1751,28 @@ export async function POST(
         workDir
       );
 
+    logTime(
+      "image preprocessing complete"
+    );
+
+    console.log(
+      `[Klaro OCR TIMING] Variants created: ${variants
+        .map(
+          (variant) =>
+            variant.name
+        )
+        .join(", ")}`
+    );
+
     /*
-     * Tesseract worker path.
-     *
-     * This avoids the Turbopack
-     * virtual-path problem.
+     * ---------------------------------------------------------------
+     * Tesseract worker
+     * ---------------------------------------------------------------
      */
+
+    console.log(
+      "[Klaro OCR TIMING] Starting Tesseract worker creation..."
+    );
 
     const workerPath =
       path.join(
@@ -1717,9 +1785,12 @@ export async function POST(
         "index.js"
       );
 
-    /*
-     * Create worker.
-     */
+    console.log(
+      `[Klaro OCR TIMING] Worker path: ${workerPath}`
+    );
+
+    const workerStart =
+      Date.now();
 
     worker =
       await createWorker(
@@ -1753,38 +1824,33 @@ export async function POST(
         }
       );
 
-    const candidates:
-      OCRCandidate[] = [];
+    console.log(
+      `[Klaro OCR TIMING] Tesseract worker created in ${
+        Date.now() -
+        workerStart
+      }ms`
+    );
+
+    logTime(
+      "Tesseract worker ready"
+    );
 
     /*
      * ---------------------------------------------------------------
      * OCR candidates
      * ---------------------------------------------------------------
      *
-     * IMPORTANT FOR VERCEL:
+     * Only:
      *
-     * The previous implementation performed:
+     * ORIGINAL / AUTO
+     * GRAYSCALE / AUTO
      *
-     * 5 image variants
-     * ×
-     * 2 PSM modes
-     * =
-     * 10 Tesseract operations.
-     *
-     * That was causing:
-     *
-     * FUNCTION_INVOCATION_TIMEOUT
-     *
-     * on Vercel.
-     *
-     * We now use:
-     *
-     * 1. ORIGINAL / AUTO
-     * 2. GRAYSCALE / AUTO
-     *
-     * Total:
-     * 2 OCR operations.
+     * Total: 2 OCR operations.
+     * ---------------------------------------------------------------
      */
+
+    const candidates:
+      OCRCandidate[] = [];
 
     const selectedVariants =
       variants.filter(
@@ -1795,10 +1861,32 @@ export async function POST(
             "GRAYSCALE"
       );
 
+    console.log(
+      `[Klaro OCR TIMING] Selected variants: ${selectedVariants
+        .map(
+          (variant) =>
+            variant.name
+        )
+        .join(", ")}`
+    );
+
+    /*
+     * ---------------------------------------------------------------
+     * Run OCR candidates
+     * ---------------------------------------------------------------
+     */
+
     for (
       const variant of
         selectedVariants
     ) {
+      const candidateStart =
+        Date.now();
+
+      console.log(
+        `[Klaro OCR TIMING] >>> Starting ${variant.name} / AUTO`
+      );
+
       try {
         const candidate =
           await recognizeImage(
@@ -1823,13 +1911,45 @@ export async function POST(
             )}, ` +
             `suspicious=${candidate.suspicious}`
         );
+
+        console.log(
+          `[Klaro OCR TIMING] <<< ${variant.name} / AUTO complete in ${
+            Date.now() -
+            candidateStart
+          }ms`
+        );
+
+        logTime(
+          `${variant.name} / AUTO complete`
+        );
       } catch (error) {
         console.error(
           `[Klaro OCR] ${variant.name} AUTO failed:`,
           error
         );
+
+        console.error(
+          `[Klaro OCR TIMING] ${variant.name} / AUTO failed after ${
+            Date.now() -
+            candidateStart
+          }ms`
+        );
       }
     }
+
+    /*
+     * ---------------------------------------------------------------
+     * Candidate validation
+     * ---------------------------------------------------------------
+     */
+
+    console.log(
+      `[Klaro OCR TIMING] OCR candidates completed: ${candidates.length}`
+    );
+
+    logTime(
+      "all OCR candidates complete"
+    );
 
     if (
       candidates.length === 0
@@ -1876,14 +1996,14 @@ export async function POST(
       );
     }
 
-    /*
-     * Select the best result.
-     */
-
     const selected =
       selectBestCandidate(
         candidates
       );
+
+    logTime(
+      "best candidate selected"
+    );
 
     if (!selected) {
       throw new Error(
@@ -1946,7 +2066,9 @@ export async function POST(
       );
 
     /*
-     * Build final corrected text.
+     * ---------------------------------------------------------------
+     * Final text
+     * ---------------------------------------------------------------
      */
 
     const finalText =
@@ -2023,6 +2145,14 @@ export async function POST(
       Date.now() -
       startTime;
 
+    logTime(
+      "final response prepared"
+    );
+
+    console.log(
+      `[Klaro OCR TIMING] ===== OCR REQUEST COMPLETE: ${processingTimeMs}ms =====`
+    );
+
     /*
      * ---------------------------------------------------------------
      * Final response
@@ -2032,23 +2162,11 @@ export async function POST(
     return NextResponse.json({
       success: true,
 
-      /*
-       * Corrected OCR text.
-       */
-
       text:
         normalizedFinalText,
 
-      /*
-       * Text before medical correction.
-       */
-
       rawText:
         selected.rawText,
-
-      /*
-       * Confidence.
-       */
 
       confidence:
         selected.confidence,
@@ -2061,24 +2179,21 @@ export async function POST(
       confidenceSource:
         "tesseract + word-level analysis",
 
-      /*
-       * Candidate information.
-       */
-
       selectedCandidate:
         selected.name,
 
       score:
         selected.score,
 
-      /*
-       * Quality.
-       */
-
       recognitionQuality,
 
       autoQuality:
         selected.quality,
+
+      /*
+       * There are currently no SINGLE_BLOCK
+       * candidates, so this remains 0.
+       */
 
       singleBlockQuality:
         Math.max(
@@ -2111,10 +2226,6 @@ export async function POST(
           0
         ),
 
-      /*
-       * Word data.
-       */
-
       words:
         finalWords,
 
@@ -2125,10 +2236,6 @@ export async function POST(
 
       threshold:
         CONFIDENCE_THRESHOLD,
-
-      /*
-       * Statistics.
-       */
 
       tokenCount:
         selected.tokenCount,
@@ -2189,9 +2296,17 @@ export async function POST(
       },
     });
   } catch (error) {
+    const processingTimeMs =
+      Date.now() -
+      startTime;
+
     console.error(
       "[Klaro OCR] Error:",
       error
+    );
+
+    console.error(
+      `[Klaro OCR TIMING] ===== OCR REQUEST FAILED AFTER ${processingTimeMs}ms =====`
     );
 
     return NextResponse.json(
@@ -2203,9 +2318,7 @@ export async function POST(
             ? error.message
             : "OCR processing failed.",
 
-        processingTimeMs:
-          Date.now() -
-          startTime,
+        processingTimeMs,
       },
       {
         status: 500,
@@ -2213,12 +2326,24 @@ export async function POST(
     );
   } finally {
     /*
-     * Terminate Tesseract worker.
+     * ---------------------------------------------------------------
+     * Terminate worker
+     * ---------------------------------------------------------------
      */
 
     if (worker) {
+      const terminateStart =
+        Date.now();
+
       try {
         await worker.terminate();
+
+        console.log(
+          `[Klaro OCR TIMING] Worker terminated in ${
+            Date.now() -
+            terminateStart
+          }ms`
+        );
       } catch (error) {
         console.error(
           "[Klaro OCR] Worker termination failed:",
@@ -2228,10 +2353,15 @@ export async function POST(
     }
 
     /*
-     * Delete temporary files.
+     * ---------------------------------------------------------------
+     * Delete temporary files
+     * ---------------------------------------------------------------
      */
 
     if (workDir) {
+      const cleanupStart =
+        Date.now();
+
       try {
         await fs.rm(
           workDir,
@@ -2240,6 +2370,13 @@ export async function POST(
             force: true,
           }
         );
+
+        console.log(
+          `[Klaro OCR TIMING] Temporary directory cleaned in ${
+            Date.now() -
+            cleanupStart
+          }ms`
+        );
       } catch (error) {
         console.error(
           "[Klaro OCR] Temporary directory cleanup failed:",
@@ -2247,5 +2384,9 @@ export async function POST(
         );
       }
     }
+
+    console.log(
+      "[Klaro OCR TIMING] ===== OCR CLEANUP COMPLETE ====="
+    );
   }
 }
