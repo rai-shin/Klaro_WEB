@@ -400,7 +400,8 @@ export const ModelName = {
   Patient: 'Patient',
   ClinicRecord: 'ClinicRecord',
   Document: 'Document',
-  OCRResult: 'OCRResult'
+  OCRResult: 'OCRResult',
+  OCRWord: 'OCRWord'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -416,7 +417,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "patient" | "clinicRecord" | "document" | "oCRResult"
+    modelProps: "patient" | "clinicRecord" | "document" | "oCRResult" | "oCRWord"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -716,6 +717,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OCRWord: {
+      payload: Prisma.$OCRWordPayload<ExtArgs>
+      fields: Prisma.OCRWordFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OCRWordFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OCRWordFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>
+        }
+        findFirst: {
+          args: Prisma.OCRWordFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OCRWordFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>
+        }
+        findMany: {
+          args: Prisma.OCRWordFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>[]
+        }
+        create: {
+          args: Prisma.OCRWordCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>
+        }
+        createMany: {
+          args: Prisma.OCRWordCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OCRWordCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>[]
+        }
+        delete: {
+          args: Prisma.OCRWordDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>
+        }
+        update: {
+          args: Prisma.OCRWordUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>
+        }
+        deleteMany: {
+          args: Prisma.OCRWordDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OCRWordUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OCRWordUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>[]
+        }
+        upsert: {
+          args: Prisma.OCRWordUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OCRWordPayload>
+        }
+        aggregate: {
+          args: Prisma.OCRWordAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOCRWord>
+        }
+        groupBy: {
+          args: Prisma.OCRWordGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OCRWordGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OCRWordCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OCRWordCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -826,6 +901,22 @@ export const OCRResultScalarFieldEnum = {
 export type OCRResultScalarFieldEnum = (typeof OCRResultScalarFieldEnum)[keyof typeof OCRResultScalarFieldEnum]
 
 
+export const OCRWordScalarFieldEnum = {
+  id: 'id',
+  ocrResultId: 'ocrResultId',
+  originalWord: 'originalWord',
+  confidence: 'confidence',
+  isFlagged: 'isFlagged',
+  suggestedWord: 'suggestedWord',
+  reviewDecision: 'reviewDecision',
+  occurrences: 'occurrences',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OCRWordScalarFieldEnum = (typeof OCRWordScalarFieldEnum)[keyof typeof OCRWordScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -909,6 +1000,13 @@ export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, '
  * Reference to a field of type 'Float[]'
  */
 export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 /**
@@ -1066,6 +1164,7 @@ export type GlobalOmitConfig = {
   clinicRecord?: Prisma.ClinicRecordOmit
   document?: Prisma.DocumentOmit
   oCRResult?: Prisma.OCRResultOmit
+  oCRWord?: Prisma.OCRWordOmit
 }
 
 /* Types for Logging */

@@ -37,3 +37,8 @@ export type Document = Prisma.DocumentModel
  * 
  */
 export type OCRResult = Prisma.OCRResultModel
+/**
+ * Model OCRWord
+ * 
+ */
+export type OCRWord = Prisma.OCRWordModel

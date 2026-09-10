@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import Image from "next/image";
 
 import Sidebar from "@/components/Sidebar";
@@ -16,7 +17,13 @@ import {
   OCRWord,
 } from "@/lib/ocr";
 
-import { suggestCorrection } from "@/lib/correction";
+import {
+  suggestCorrection,
+} from "@/lib/correction";
+
+// --------------------------------------------------
+// TYPES
+// --------------------------------------------------
 
 type OCRStatus =
   | "idle"
@@ -51,7 +58,25 @@ type DocumentUploadResponse = {
   documentType: string | null;
 };
 
+// --------------------------------------------------
+// CONFIDENCE THRESHOLDS
+// --------------------------------------------------
+
+const HIGH_CONFIDENCE = 90;
+const MODERATE_CONFIDENCE = 70;
+
+// --------------------------------------------------
+// PAGE
+// --------------------------------------------------
+
 export default function OCRPage() {
+  // --------------------------------------------------
+  // MOBILE SIDEBAR
+  // --------------------------------------------------
+
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
   // --------------------------------------------------
   // FILE
   // --------------------------------------------------
@@ -66,10 +91,14 @@ export default function OCRPage() {
     useState<DocumentType | null>(null);
 
   // --------------------------------------------------
-  // OCR / TEXT
+  // TEXT LAYERS
   // --------------------------------------------------
 
-  const [text, setText] = useState("");
+  const [text, setText] =
+    useState("");
+
+  const [reviewedText, setReviewedText] =
+    useState("");
 
   const [correctedText, setCorrectedText] =
     useState("");
@@ -125,15 +154,17 @@ export default function OCRPage() {
   // CORRECTIONS
   // --------------------------------------------------
 
-  /*
-   * true  = accepted
-   * false = ignored
-   * undefined = not decided
-   */
   const [
     correctionDecisions,
     setCorrectionDecisions,
   ] = useState<CorrectionState>({});
+
+  const [
+    correctionSuggestions,
+    setCorrectionSuggestions,
+  ] = useState<
+    Record<string, string>
+  >({});
 
   // --------------------------------------------------
   // CLEANUP PREVIEW
@@ -164,7 +195,11 @@ export default function OCRPage() {
             "content-type"
           ) || "";
 
-        if (!contentType.includes("application/json")) {
+        if (
+          !contentType.includes(
+            "application/json"
+          )
+        ) {
           const responseText =
             await response.text();
 
@@ -185,15 +220,12 @@ export default function OCRPage() {
         const data =
           await response.json();
 
-        /*
-         * Your API may return an array directly
-         * or { patients: [...] }.
-         */
-        const patientList = Array.isArray(data)
-          ? data
-          : Array.isArray(data.patients)
-            ? data.patients
-            : [];
+        const patientList =
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data.patients)
+              ? data.patients
+              : [];
 
         setPatients(patientList);
       } catch (error) {
@@ -214,6 +246,17 @@ export default function OCRPage() {
 
     fetchPatients();
   }, []);
+
+  // --------------------------------------------------
+  // SYNC LAYER 2 TO LAYER 3
+  // --------------------------------------------------
+
+  function updateReviewedText(
+    value: string
+  ) {
+    setReviewedText(value);
+    setCorrectedText(value);
+  }
 
   // --------------------------------------------------
   // DETECT DOCUMENT TYPE
@@ -279,7 +322,9 @@ export default function OCRPage() {
     setDocumentType(detectedType);
 
     setText("");
+    setReviewedText("");
     setCorrectedText("");
+
     setConfidence(null);
     setWords([]);
 
@@ -291,20 +336,16 @@ export default function OCRPage() {
     setSavedDocument(null);
 
     setCorrectionDecisions({});
+    setCorrectionSuggestions({});
 
     if (preview) {
       URL.revokeObjectURL(preview);
       setPreview(null);
     }
 
-    /*
-     * Only images have an image preview here.
-     */
     if (detectedType === "image") {
       const newPreview =
-        URL.createObjectURL(
-          selectedFile
-        );
+        URL.createObjectURL(selectedFile);
 
       setPreview(newPreview);
     }
@@ -369,7 +410,8 @@ export default function OCRPage() {
         "application/json"
       )
     ) {
-      data = await response.json();
+      data =
+        await response.json();
     } else {
       const responseText =
         await response.text();
@@ -417,6 +459,10 @@ export default function OCRPage() {
 
     setText(result.text);
 
+    setReviewedText(
+      result.text
+    );
+
     setCorrectedText(
       result.text
     );
@@ -425,7 +471,9 @@ export default function OCRPage() {
       result.confidence
     );
 
-    setWords(result.words);
+    setWords(
+      result.words
+    );
 
     setProgress(100);
   }
@@ -463,14 +511,16 @@ export default function OCRPage() {
       extractedText
     );
 
+    setReviewedText(
+      extractedText
+    );
+
     setCorrectedText(
       extractedText
     );
 
-    /*
-     * DOCX text extraction does not use Tesseract.
-     */
     setConfidence(null);
+
     setWords([]);
 
     setProgress(100);
@@ -496,12 +546,6 @@ export default function OCRPage() {
 
     setProgress(10);
 
-    /*
-     * Required PDF.js worker.
-     *
-     * File:
-     * public/pdf.worker.min.mjs
-     */
     pdfjs.GlobalWorkerOptions.workerSrc =
       "/pdf.worker.min.mjs";
 
@@ -518,16 +562,18 @@ export default function OCRPage() {
     const pdf =
       await loadingTask.promise;
 
-    const pageTexts: string[] = [];
+    const pageTexts: string[] =
+      [];
 
-    const pageConfidences: number[] = [];
+    const pageConfidences: number[] =
+      [];
 
-    const allWords: OCRWord[] = [];
+    const allWords: OCRWord[] =
+      [];
 
     for (
       let pageNumber = 1;
-      pageNumber <=
-        pdf.numPages;
+      pageNumber <= pdf.numPages;
       pageNumber++
     ) {
       const page =
@@ -564,21 +610,12 @@ export default function OCRPage() {
           viewport.height
         );
 
-      /*
-       * pdfjs-dist requires canvas
-       * and canvasContext.
-       */
       await page.render({
         canvas,
-        canvasContext:
-          context,
+        canvasContext: context,
         viewport,
       }).promise;
 
-      /*
-       * Convert rendered PDF page
-       * to PNG.
-       */
       const imageBlob =
         await new Promise<Blob>(
           (resolve, reject) => {
@@ -599,9 +636,6 @@ export default function OCRPage() {
           }
         );
 
-      /*
-       * Our OCR utility currently expects File.
-       */
       const imageFile =
         new File(
           [imageBlob],
@@ -638,10 +672,6 @@ export default function OCRPage() {
       );
     }
 
-    /*
-     * Average confidence across
-     * all pages.
-     */
     const averageConfidence =
       pageConfidences.length > 0
         ? pageConfidences.reduce(
@@ -656,11 +686,13 @@ export default function OCRPage() {
         : null;
 
     const combinedText =
-      pageTexts.join(
-        "\n\n"
-      );
+      pageTexts.join("\n\n");
 
     setText(
+      combinedText
+    );
+
+    setReviewedText(
       combinedText
     );
 
@@ -713,20 +745,21 @@ export default function OCRPage() {
 
       setError("");
       setSaveMessage("");
+
       setSavedDocument(null);
 
       setProgress(0);
 
       setText("");
+      setReviewedText("");
       setCorrectedText("");
+
       setConfidence(null);
       setWords([]);
 
       setCorrectionDecisions({});
+      setCorrectionSuggestions({});
 
-      /*
-       * Save original file first.
-       */
       const document =
         await uploadOriginalFile();
 
@@ -734,22 +767,16 @@ export default function OCRPage() {
         document
       );
 
-      /*
-       * Process selected file.
-       */
       if (
-        documentType ===
-        "image"
+        documentType === "image"
       ) {
         await processImage();
       } else if (
-        documentType ===
-        "pdf"
+        documentType === "pdf"
       ) {
         await processPdf();
       } else if (
-        documentType ===
-        "docx"
+        documentType === "docx"
       ) {
         await processDocx();
       }
@@ -788,6 +815,88 @@ export default function OCRPage() {
   }
 
   // --------------------------------------------------
+  // LOAD CORRECTION SUGGESTIONS
+  // --------------------------------------------------
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCorrectionSuggestions() {
+      const suggestions:
+        Record<string, string> = {};
+
+      const processedWords =
+        new Set<string>();
+
+      for (const word of words) {
+        if (
+          word.confidence >=
+          HIGH_CONFIDENCE
+        ) {
+          continue;
+        }
+
+        const normalized =
+          normalizeWord(
+            word.text
+          );
+
+        if (!normalized) {
+          continue;
+        }
+
+        if (
+          processedWords.has(
+            normalized
+          )
+        ) {
+          continue;
+        }
+
+        processedWords.add(
+          normalized
+        );
+
+        try {
+          const suggestion =
+            await suggestCorrection(
+              word.text,
+              word.confidence
+            );
+
+          if (suggestion) {
+            suggestions[
+              normalized
+            ] = suggestion;
+          }
+        } catch (error) {
+          console.error(
+            "Correction suggestion error:",
+            error
+          );
+        }
+      }
+
+      if (!cancelled) {
+        setCorrectionSuggestions(
+          suggestions
+        );
+      }
+    }
+
+    if (words.length === 0) {
+      setCorrectionSuggestions({});
+      return;
+    }
+
+    loadCorrectionSuggestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [words]);
+
+  // --------------------------------------------------
   // GROUP POSSIBLE CORRECTIONS
   // --------------------------------------------------
 
@@ -805,6 +914,13 @@ export default function OCRPage() {
       >();
 
       for (const word of words) {
+        if (
+          word.confidence >=
+          HIGH_CONFIDENCE
+        ) {
+          continue;
+        }
+
         const normalized =
           normalizeWord(
             word.text
@@ -815,10 +931,9 @@ export default function OCRPage() {
         }
 
         const suggestion =
-          suggestCorrection(
-            word.text,
-            word.confidence
-          );
+          correctionSuggestions[
+            normalized
+          ];
 
         if (!suggestion) {
           continue;
@@ -856,11 +971,13 @@ export default function OCRPage() {
       return Array.from(
         groups.values()
       );
-    }, [words]);
+    }, [
+      words,
+      correctionSuggestions,
+    ]);
 
   // --------------------------------------------------
   // GROUP LOW-CONFIDENCE WORDS
-  // WITHOUT A CORRECTION
   // --------------------------------------------------
 
   const groupedFlaggedWords =
@@ -877,7 +994,8 @@ export default function OCRPage() {
 
       for (const word of words) {
         if (
-          word.confidence >= 70
+          word.confidence >=
+          MODERATE_CONFIDENCE
         ) {
           continue;
         }
@@ -891,16 +1009,10 @@ export default function OCRPage() {
           continue;
         }
 
-        /*
-         * If it has a correction,
-         * it is displayed in the
-         * correction section.
-         */
         const suggestion =
-          suggestCorrection(
-            word.text,
-            word.confidence
-          );
+          correctionSuggestions[
+            normalized
+          ];
 
         if (suggestion) {
           continue;
@@ -937,6 +1049,42 @@ export default function OCRPage() {
       return Array.from(
         groups.values()
       );
+    }, [
+      words,
+      correctionSuggestions,
+    ]);
+
+  // --------------------------------------------------
+  // REVIEW COUNTS
+  // --------------------------------------------------
+
+  const highConfidenceCount =
+    useMemo(() => {
+      return words.filter(
+        (word) =>
+          word.confidence >=
+          HIGH_CONFIDENCE
+      ).length;
+    }, [words]);
+
+  const moderateConfidenceCount =
+    useMemo(() => {
+      return words.filter(
+        (word) =>
+          word.confidence >=
+            MODERATE_CONFIDENCE &&
+          word.confidence <
+            HIGH_CONFIDENCE
+      ).length;
+    }, [words]);
+
+  const lowConfidenceCount =
+    useMemo(() => {
+      return words.filter(
+        (word) =>
+          word.confidence <
+          MODERATE_CONFIDENCE
+      ).length;
     }, [words]);
 
   // --------------------------------------------------
@@ -948,7 +1096,7 @@ export default function OCRPage() {
     displayWord: string,
     suggestion: string
   ) {
-    setCorrectedText(
+    setReviewedText(
       (currentText) => {
         const escapedWord =
           displayWord.replace(
@@ -956,19 +1104,28 @@ export default function OCRPage() {
             "\\$&"
           );
 
-        /*
-         * g = replace ALL occurrences
-         */
         const pattern =
           new RegExp(
-            `\\b${escapedWord}\\b`,
+            `(^|\\s)${escapedWord}(?=\\s|$|[.,!?;:])`,
             "gi"
           );
 
-        return currentText.replace(
-          pattern,
-          suggestion
+        const updatedText =
+          currentText.replace(
+            pattern,
+            (
+              _match,
+              prefix
+            ) => {
+              return `${prefix}${suggestion}`;
+            }
+          );
+
+        setCorrectedText(
+          updatedText
         );
+
+        return updatedText;
       }
     );
 
@@ -1008,7 +1165,9 @@ export default function OCRPage() {
       return;
     }
 
-    if (status !== "complete") {
+    if (
+      status !== "complete"
+    ) {
       setError(
         "Please finish document processing first."
       );
@@ -1026,16 +1185,14 @@ export default function OCRPage() {
         "OCR_IMAGE";
 
       if (
-        documentType ===
-        "pdf"
+        documentType === "pdf"
       ) {
         processingMethod =
           "OCR_PDF";
       }
 
       if (
-        documentType ===
-        "docx"
+        documentType === "docx"
       ) {
         processingMethod =
           "TEXT_EXTRACTION";
@@ -1066,6 +1223,81 @@ export default function OCRPage() {
                 confidence,
 
               processingMethod,
+
+              words: words.map(
+                (word) => ({
+                  text:
+                    word.text,
+
+                  confidence:
+                    word.confidence,
+                })
+              ),
+
+              reviewWords: [
+                ...groupedCorrectionWords.map(
+                  (item) => ({
+                    normalized:
+                      item.normalized,
+
+                    displayWord:
+                      item.displayWord,
+
+                    confidence:
+                      item.confidence,
+
+                    occurrences:
+                      item.occurrences,
+
+                    suggestion:
+                      item.suggestion,
+
+                    isFlagged:
+                      item.confidence <
+                      MODERATE_CONFIDENCE,
+
+                    decision:
+                      correctionDecisions[
+                        item.normalized
+                      ] === true
+                        ? "ACCEPTED"
+                        : correctionDecisions[
+                              item.normalized
+                            ] === false
+                          ? "IGNORED"
+                          : "PENDING",
+                  })
+                ),
+
+                ...groupedFlaggedWords.map(
+                  (item) => ({
+                    normalized:
+                      item.normalized,
+
+                    displayWord:
+                      item.displayWord,
+
+                    confidence:
+                      item.confidence,
+
+                    occurrences:
+                      item.occurrences,
+
+                    suggestion:
+                      undefined,
+
+                    isFlagged:
+                      true,
+
+                    decision:
+                      correctionDecisions[
+                        item.normalized
+                      ] === false
+                        ? "IGNORED"
+                        : "PENDING",
+                  })
+                ),
+              ],
             }),
           }
         );
@@ -1106,7 +1338,7 @@ export default function OCRPage() {
       }
 
       setSaveMessage(
-        "Document and processing result successfully saved to PostgreSQL."
+        "Document, OCR result, and confidence-based review data successfully saved to PostgreSQL."
       );
     } catch (error) {
       console.error(
@@ -1134,15 +1366,13 @@ export default function OCRPage() {
     }
 
     if (
-      documentType ===
-      "image"
+      documentType === "image"
     ) {
       return "Image";
     }
 
     if (
-      documentType ===
-      "pdf"
+      documentType === "pdf"
     ) {
       return "PDF";
     }
@@ -1151,17 +1381,23 @@ export default function OCRPage() {
   }
 
   // --------------------------------------------------
-  // OVERALL CONFIDENCE HELPERS
+  // CONFIDENCE HELPERS
   // --------------------------------------------------
 
   function getConfidenceLabel(
     value: number
   ) {
-    if (value >= 90) {
+    if (
+      value >=
+      HIGH_CONFIDENCE
+    ) {
       return "High Confidence";
     }
 
-    if (value >= 70) {
+    if (
+      value >=
+      MODERATE_CONFIDENCE
+    ) {
       return "Moderate Confidence";
     }
 
@@ -1171,47 +1407,21 @@ export default function OCRPage() {
   function getConfidenceClass(
     value: number
   ) {
-    if (value >= 90) {
+    if (
+      value >=
+      HIGH_CONFIDENCE
+    ) {
       return "bg-green-50 text-green-700";
     }
 
-    if (value >= 70) {
+    if (
+      value >=
+      MODERATE_CONFIDENCE
+    ) {
       return "bg-yellow-50 text-yellow-700";
     }
 
     return "bg-red-50 text-red-700";
-  }
-
-  // --------------------------------------------------
-  // WORD CONFIDENCE HELPERS
-  // --------------------------------------------------
-
-  function getWordStatusLabel(
-    value: number
-  ) {
-    if (value >= 90) {
-      return "High";
-    }
-
-    if (value >= 70) {
-      return "Moderate";
-    }
-
-    return "Needs Review";
-  }
-
-  function getWordStatusClass(
-    value: number
-  ) {
-    if (value >= 90) {
-      return "border-green-200 bg-green-50 text-green-700";
-    }
-
-    if (value >= 70) {
-      return "border-yellow-200 bg-yellow-50 text-yellow-700";
-    }
-
-    return "border-red-200 bg-red-50 text-red-700";
   }
 
   // --------------------------------------------------
@@ -1220,32 +1430,54 @@ export default function OCRPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar />
 
-      <main className="ml-64">
-        <Header />
+      {/* SIDEBAR */}
 
-        <div className="p-8">
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() =>
+          setSidebarOpen(false)
+        }
+      />
+
+      {/* MAIN */}
+
+      <main className="min-h-screen lg:ml-64">
+
+        {/* HEADER */}
+
+        <Header
+          onMenuClick={() =>
+            setSidebarOpen(true)
+          }
+        />
+
+        {/* CONTENT */}
+
+        <div className="px-4 py-5 sm:px-6 sm:py-6 lg:p-8">
+
           <div className="mx-auto max-w-7xl">
 
             {/* HEADER */}
 
             <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="text-xl font-bold text-gray-800 sm:text-2xl">
                 Document Input
               </h1>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Upload a clinic document, process its
-                contents, review confidence, correct
-                possible errors, and save the result.
+              <p className="mt-2 text-sm leading-6 text-gray-500">
+                Upload a clinic document and process it
+                through Klaro&apos;s three-layer workflow:
+                Original Copy, Editable Digital Review,
+                and Structured Final Copy.
               </p>
             </div>
 
             {/* PATIENT */}
 
-            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-gray-800">
+            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+
+              <h2 className="mb-4 text-base font-semibold text-gray-800 sm:text-lg">
                 Patient
               </h2>
 
@@ -1254,17 +1486,13 @@ export default function OCRPage() {
               </label>
 
               <select
-                value={
-                  selectedPatientId
-                }
+                value={selectedPatientId}
                 onChange={(event) =>
                   setSelectedPatientId(
                     event.target.value
                   )
                 }
-                disabled={
-                  loadingPatients
-                }
+                disabled={loadingPatients}
                 className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
               >
                 <option value="">
@@ -1276,26 +1504,17 @@ export default function OCRPage() {
                 {patients.map(
                   (patient) => (
                     <option
-                      key={
-                        patient.id
-                      }
-                      value={
-                        patient.id
-                      }
+                      key={patient.id}
+                      value={patient.id}
                     >
-                      {
-                        patient.studentId
-                      }{" "}
-                      -{" "}
-                      {
-                        patient.firstName
-                      }{" "}
+                      {patient.studentId}
+                      {" - "}
+                      {patient.firstName}
+                      {" "}
                       {patient.middleName
                         ? `${patient.middleName} `
                         : ""}
-                      {
-                        patient.lastName
-                      }
+                      {patient.lastName}
                     </option>
                   )
                 )}
@@ -1304,42 +1523,39 @@ export default function OCRPage() {
               {!loadingPatients &&
                 patients.length === 0 && (
                   <p className="mt-2 text-xs text-gray-400">
-                    No patients found. Add a patient
-                    first.
+                    No patients found. Add a patient first.
                   </p>
                 )}
+
             </section>
 
             {/* DOCUMENT UPLOAD */}
 
-            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
 
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
+                  <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
                     Upload Document
                   </h2>
 
                   <p className="mt-1 text-sm text-gray-500">
-                    Supported: JPG, JPEG, PNG,
-                    WEBP, PDF, DOCX
+                    Supported: JPG, JPEG, PNG, WEBP, PDF, DOCX
                   </p>
                 </div>
 
                 {documentType && (
                   <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {
-                      getDocumentTypeLabel()
-                    }
+                    {getDocumentTypeLabel()}
                   </span>
                 )}
 
               </div>
 
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 px-6 py-12 transition hover:border-blue-400 hover:bg-blue-50/30">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/30 sm:px-6 sm:py-12">
 
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-2xl text-blue-600">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl text-blue-600 sm:h-14 sm:w-14 sm:text-2xl">
                   ↑
                 </div>
 
@@ -1360,9 +1576,7 @@ export default function OCRPage() {
                     "application/pdf",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                   ].join(",")}
-                  onChange={
-                    handleFileChange
-                  }
+                  onChange={handleFileChange}
                   className="hidden"
                 />
 
@@ -1374,49 +1588,38 @@ export default function OCRPage() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                     <div className="min-w-0">
-
                       <p className="truncate text-sm font-medium text-gray-700">
                         {file.name}
                       </p>
 
                       <p className="text-xs text-gray-400">
-                        {(
-                          file.size /
-                          1024
-                        ).toFixed(
-                          1
-                        )}{" "}
-                        KB
+                        {(file.size / 1024).toFixed(1)}
+                        {" KB"}
                       </p>
-
                     </div>
 
                     <button
                       type="button"
-                      onClick={
-                        handleProcessDocument
-                      }
+                      onClick={handleProcessDocument}
                       disabled={
-                        status ===
-                          "processing" ||
+                        status === "processing" ||
                         !selectedPatientId
                       }
-                      className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                     >
-                      {status ===
-                      "processing"
+                      {status === "processing"
                         ? "Processing..."
-                        : documentType ===
-                            "image" ||
-                          documentType ===
-                            "pdf"
+                        : documentType === "image" ||
+                            documentType === "pdf"
                           ? "Run OCR"
                           : "Process Document"}
                     </button>
 
                   </div>
+
                 </div>
               )}
+
             </section>
 
             {/* ERROR */}
@@ -1437,39 +1640,30 @@ export default function OCRPage() {
 
             {/* PROCESSING */}
 
-            {status ===
-              "processing" && (
-              <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            {status === "processing" && (
+              <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
 
-                <div className="mb-3 flex justify-between">
-
+                <div className="mb-3 flex items-center justify-between gap-4">
                   <span className="text-sm font-medium text-gray-700">
-                    Processing{" "}
-                    {
-                      getDocumentTypeLabel()
-                    }
+                    Processing {getDocumentTypeLabel()}
                   </span>
 
-                  <span className="text-sm font-semibold text-blue-600">
+                  <span className="shrink-0 text-sm font-semibold text-blue-600">
                     {progress}%
                   </span>
-
                 </div>
 
                 <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-
                   <div
                     className="h-full rounded-full bg-blue-600 transition-all duration-300"
                     style={{
                       width: `${progress}%`,
                     }}
                   />
-
                 </div>
 
                 <p className="mt-3 text-xs text-gray-400">
-                  Please wait while the document is
-                  being processed.
+                  Please wait while the document is being processed.
                 </p>
 
               </section>
@@ -1477,204 +1671,223 @@ export default function OCRPage() {
 
             {/* RESULTS */}
 
-            {status ===
-              "complete" && (
+            {status === "complete" && (
               <>
 
-                {/* IMAGE PREVIEW */}
+                {/* LAYER 1 */}
 
-                {preview && (
-                  <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <section className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-                    <h2 className="mb-4 text-lg font-semibold text-gray-800">
-                      Original File Preview
+                  <div className="border-b border-gray-200 bg-gray-50 p-4 sm:p-6">
+
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                      Layer 1
+                    </p>
+
+                    <h2 className="mt-1 text-lg font-bold text-gray-800 sm:text-xl">
+                      Original Copy
                     </h2>
 
-                    <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                    <p className="mt-1 text-sm leading-6 text-gray-500">
+                      The original uploaded document is preserved unchanged.
+                    </p>
 
-                      <Image
-                        src={
-                          preview
+                  </div>
+
+                  <div className="p-4 sm:p-6">
+
+                    {preview ? (
+                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+
+                        <Image
+                          src={preview}
+                          alt="Original uploaded document"
+                          width={1000}
+                          height={1200}
+                          unoptimized
+                          className="mx-auto h-auto max-h-[700px] w-full object-contain"
+                        />
+
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 sm:p-6">
+
+                        <p className="text-sm font-medium text-gray-700">
+                          Original File Saved
+                        </p>
+
+                        {file && (
+                          <p className="mt-2 break-all text-sm text-gray-500">
+                            {file.name}
+                          </p>
+                        )}
+
+                      </div>
+                    )}
+
+                  </div>
+
+                </section>
+
+                {/* LAYER 2 */}
+
+                <section className="mb-6 overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm">
+
+                  <div className="border-b border-blue-100 bg-blue-50 p-4 sm:p-6">
+
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
+                      Layer 2
+                    </p>
+
+                    <h2 className="mt-1 text-lg font-bold text-gray-800 sm:text-xl">
+                      Digital Copy with Review Flags
+                    </h2>
+
+                    <p className="mt-1 text-sm leading-6 text-gray-600">
+                      Only words requiring attention are displayed in the review section.
+                    </p>
+
+                  </div>
+
+                  <div className="p-4 sm:p-6">
+
+                    {/* DIGITAL COPY */}
+
+                    <div className="mb-6">
+
+                      <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
+                        Digital Copy
+                      </h3>
+
+                      <textarea
+                        value={reviewedText}
+                        onChange={(event) =>
+                          updateReviewedText(
+                            event.target.value
+                          )
                         }
-                        alt="Original uploaded document"
-                        width={1000}
-                        height={1200}
-                        unoptimized
-                        className="mx-auto h-auto max-h-[600px] w-full object-contain"
+                        rows={15}
+                        className="mt-3 w-full resize-y rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       />
 
                     </div>
 
-                  </section>
-                )}
+                    {/* OVERALL CONFIDENCE */}
 
-                {/* ORIGINAL / CORRECTED TEXT */}
-
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-                  <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
-                    <h2 className="mb-3 text-lg font-semibold text-gray-800">
-                      Original Extracted Text
-                    </h2>
-
-                    <textarea
-                      value={
-                        text
-                      }
-                      readOnly
-                      rows={15}
-                      className="w-full resize-none rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 outline-none"
-                    />
-
-                  </section>
-
-                  <section className="rounded-xl border border-blue-200 bg-white p-6 shadow-sm">
-
-                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-
-                      <h2 className="text-lg font-semibold text-gray-800">
-                        Corrected Text
-                      </h2>
-
-                      <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                        Editable
-                      </span>
-
-                    </div>
-
-                    <textarea
-                      value={
-                        correctedText
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setCorrectedText(
-                          event.target.value
-                        )
-                      }
-                      rows={15}
-                      className="w-full resize-none rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    />
-
-                    <p className="mt-2 text-xs text-gray-400">
-                      Accepted corrections are reflected
-                      here. You can also manually edit the
-                      corrected result.
-                    </p>
-
-                  </section>
-
-                </div>
-
-                {/* CONFIDENCE */}
-
-                {confidence !==
-                  null && (
-                  <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-                      <div>
+                    {confidence !== null && (
+                      <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
 
                         <p className="text-sm text-gray-500">
-                          Overall Confidence
+                          OCR Overall Confidence
                         </p>
 
-                        <p className="mt-1 text-3xl font-bold text-gray-800">
-                          {
-                            confidence.toFixed(
-                              1
-                            )
-                          }
-                          %
+                        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+
+                          <p className="text-3xl font-bold text-gray-800">
+                            {confidence.toFixed(1)}%
+                          </p>
+
+                          <span
+                            className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${getConfidenceClass(
+                              confidence
+                            )}`}
+                          >
+                            {getConfidenceLabel(
+                              confidence
+                            )}
+                          </span>
+
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* REVIEW SUMMARY */}
+
+                    {words.length > 0 && (
+                      <div className="mb-6">
+
+                        <h3 className="mb-3 text-base font-semibold text-gray-800 sm:text-lg">
+                          Confidence Review Summary
+                        </h3>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+
+                          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+
+                            <p className="text-xs font-medium uppercase tracking-wide text-green-600">
+                              Automatically Trusted
+                            </p>
+
+                            <p className="mt-1 text-2xl font-bold text-green-700">
+                              {highConfidenceCount}
+                            </p>
+
+                            <p className="mt-2 text-xs leading-5 text-green-600">
+                              High-confidence words are not shown for review.
+                            </p>
+
+                          </div>
+
+                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+
+                            <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
+                              Possible Corrections
+                            </p>
+
+                            <p className="mt-1 text-2xl font-bold text-blue-700">
+                              {groupedCorrectionWords.length}
+                            </p>
+
+                            <p className="mt-2 text-xs leading-5 text-blue-600">
+                              Moderate or low-confidence words with suggestions.
+                            </p>
+
+                          </div>
+
+                          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+
+                            <p className="text-xs font-medium uppercase tracking-wide text-red-600">
+                              Needs Manual Review
+                            </p>
+
+                            <p className="mt-1 text-2xl font-bold text-red-700">
+                              {groupedFlaggedWords.length}
+                            </p>
+
+                            <p className="mt-2 text-xs leading-5 text-red-600">
+                              Low-confidence words without suggestions.
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                        <p className="mt-3 text-xs leading-5 text-gray-400">
+                          OCR words: {words.length}
+                          {" · "}
+                          Moderate confidence: {moderateConfidenceCount}
+                          {" · "}
+                          Low confidence: {lowConfidenceCount}
                         </p>
 
                       </div>
-
-                      <span
-                        className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${getConfidenceClass(
-                          confidence
-                        )}`}
-                      >
-                        {
-                          getConfidenceLabel(
-                            confidence
-                          )
-                        }
-                      </span>
-
-                    </div>
-
-                  </section>
-                )}
-
-                {/* OCR WORD ANALYSIS */}
-
-                {words.length >
-                  0 && (
-                  <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
-                    {/* SUMMARY */}
-
-                    <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                          Recognized Words
-                        </p>
-
-                        <p className="mt-1 text-2xl font-bold text-gray-800">
-                          {
-                            words.length
-                          }
-                        </p>
-                      </div>
-
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-red-600">
-                          Needs Review
-                        </p>
-
-                        <p className="mt-1 text-2xl font-bold text-red-700">
-                          {
-                            groupedFlaggedWords.length
-                          }
-                        </p>
-                      </div>
-
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
-                          Possible Corrections
-                        </p>
-
-                        <p className="mt-1 text-2xl font-bold text-blue-700">
-                          {
-                            groupedCorrectionWords.length
-                          }
-                        </p>
-                      </div>
-
-                    </div>
+                    )}
 
                     {/* POSSIBLE CORRECTIONS */}
 
-                    {groupedCorrectionWords.length >
-                      0 && (
+                    {groupedCorrectionWords.length > 0 && (
                       <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
 
                         <h3 className="text-sm font-semibold text-blue-800">
                           Possible Corrections
                         </h3>
 
-                        <p className="mt-1 text-xs text-blue-600">
-                          Duplicate words are grouped
-                          together. Accepting a correction
-                          changes all matching occurrences.
+                        <p className="mt-1 text-xs leading-5 text-blue-600">
+                          These words have lower confidence and a possible correction generated by the correction mechanism.
                         </p>
 
-                        <div className="mt-4 space-y-3">
+                        <div className="mt-4 max-h-96 space-y-3 overflow-y-auto">
 
                           {groupedCorrectionWords.map(
                             (item) => {
@@ -1691,81 +1904,52 @@ export default function OCRPage() {
 
                               return (
                                 <div
-                                  key={
-                                    item.normalized
-                                  }
+                                  key={item.normalized}
                                   className="rounded-lg border border-blue-200 bg-white p-4"
                                 >
 
-                                  {/* HEADER */}
-
                                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-                                    <div>
+                                    <div className="min-w-0">
 
                                       <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                                         OCR Word
                                       </p>
 
-                                      <p className="mt-1 text-lg font-semibold text-gray-800">
-                                        {
-                                          item.displayWord
-                                        }
+                                      <p className="mt-1 break-words text-lg font-semibold text-gray-800">
+                                        {item.displayWord}
                                       </p>
 
                                       <p className="mt-1 text-xs text-gray-400">
-                                        {
-                                          item.occurrences
-                                        }{" "}
-                                        occurrence
-                                        {
-                                          item.occurrences !==
-                                          1
-                                            ? "s"
-                                            : ""
-                                        }
+                                        {item.occurrences} occurrence
+                                        {item.occurrences !== 1
+                                          ? "s"
+                                          : ""}
                                       </p>
 
                                     </div>
 
-                                    <div className="flex items-center gap-3">
-
-                                      <span className="text-sm font-semibold text-gray-600">
-                                        {item.confidence.toFixed(
-                                          1
-                                        )}
-                                        %
-                                      </span>
-
-                                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                                        Possible Correction
-                                      </span>
-
-                                    </div>
+                                    <span className="w-fit shrink-0 rounded-full bg-yellow-50 px-3 py-1 text-sm font-semibold text-yellow-700">
+                                      {item.confidence.toFixed(1)}%
+                                    </span>
 
                                   </div>
-
-                                  {/* SUGGESTION */}
 
                                   <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
 
-                                    <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
+                                    <p className="text-xs font-medium uppercase text-blue-600">
                                       Suggested Correction
                                     </p>
 
-                                    <p className="mt-1 text-base font-semibold text-blue-800">
-                                      {
-                                        item.suggestion
-                                      }
+                                    <p className="mt-1 break-words text-base font-semibold text-blue-800">
+                                      {item.suggestion}
                                     </p>
 
                                   </div>
 
-                                  {/* BUTTONS */}
-
                                   {!accepted &&
                                     !ignored && (
-                                      <div className="mt-4 flex flex-wrap gap-2">
+                                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
 
                                         <button
                                           type="button"
@@ -1776,7 +1960,7 @@ export default function OCRPage() {
                                               item.suggestion
                                             )
                                           }
-                                          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto"
                                         >
                                           Accept Correction
                                         </button>
@@ -1788,15 +1972,13 @@ export default function OCRPage() {
                                               item.normalized
                                             )
                                           }
-                                          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
                                         >
                                           Ignore
                                         </button>
 
                                       </div>
                                     )}
-
-                                  {/* ACCEPTED */}
 
                                   {accepted && (
                                     <div className="mt-4 rounded-lg bg-green-50 p-3">
@@ -1805,26 +1987,8 @@ export default function OCRPage() {
                                         ✓ Correction accepted
                                       </p>
 
-                                      <p className="mt-1 text-xs text-green-600">
-                                        All{" "}
-                                        {
-                                          item.occurrences
-                                        }{" "}
-                                        occurrences changed:
-                                        {" "}
-                                        {
-                                          item.displayWord
-                                        }{" "}
-                                        →{" "}
-                                        {
-                                          item.suggestion
-                                        }
-                                      </p>
-
                                     </div>
                                   )}
-
-                                  {/* IGNORED */}
 
                                   {ignored && (
                                     <div className="mt-4 rounded-lg bg-gray-100 p-3">
@@ -1842,26 +2006,24 @@ export default function OCRPage() {
                           )}
 
                         </div>
+
                       </div>
                     )}
 
-                    {/* LOW CONFIDENCE WITHOUT SUGGESTION */}
+                    {/* LOW CONFIDENCE WORDS */}
 
-                    {groupedFlaggedWords.length >
-                      0 && (
-                      <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+                    {groupedFlaggedWords.length > 0 && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
 
                         <h3 className="text-sm font-semibold text-red-800">
-                          Low-Confidence Words
+                          Needs Manual Review
                         </h3>
 
-                        <p className="mt-1 text-xs text-red-600">
-                          These words have less than 70%
-                          OCR confidence and do not have
-                          a reliable correction suggestion.
+                        <p className="mt-1 text-xs leading-5 text-red-600">
+                          These words have low OCR confidence and no reliable automatic correction was found.
                         </p>
 
-                        <div className="mt-4 space-y-2">
+                        <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
 
                           {groupedFlaggedWords.map(
                             (item) => {
@@ -1873,69 +2035,34 @@ export default function OCRPage() {
 
                               return (
                                 <div
-                                  key={
-                                    item.normalized
-                                  }
+                                  key={item.normalized}
                                   className="rounded-lg border border-red-200 bg-white p-4"
                                 >
 
                                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-                                    <div>
+                                    <div className="min-w-0">
 
                                       <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                                         OCR Word
                                       </p>
 
-                                      <p className="mt-1 text-lg font-semibold text-gray-800">
-                                        {
-                                          item.displayWord
-                                        }
+                                      <p className="mt-1 break-words text-lg font-semibold text-gray-800">
+                                        {item.displayWord}
                                       </p>
 
                                       <p className="mt-1 text-xs text-gray-400">
-                                        {
-                                          item.occurrences
-                                        }{" "}
-                                        occurrence
-                                        {
-                                          item.occurrences !==
-                                          1
-                                            ? "s"
-                                            : ""
-                                        }
+                                        {item.occurrences} occurrence
+                                        {item.occurrences !== 1
+                                          ? "s"
+                                          : ""}
                                       </p>
 
                                     </div>
 
-                                    <div className="flex items-center gap-3">
-
-                                      <span className="text-sm font-semibold text-red-600">
-                                        {item.confidence.toFixed(
-                                          1
-                                        )}
-                                        %
-                                      </span>
-
-                                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                        Needs Review
-                                      </span>
-
-                                    </div>
-
-                                  </div>
-
-                                  <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-
-                                    <p className="text-sm font-medium text-gray-600">
-                                      No reliable correction
-                                      suggestion available.
-                                    </p>
-
-                                    <p className="mt-1 text-xs text-gray-400">
-                                      This word should be
-                                      reviewed manually.
-                                    </p>
+                                    <span className="w-fit shrink-0 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700">
+                                      {item.confidence.toFixed(1)}%
+                                    </span>
 
                                   </div>
 
@@ -1947,9 +2074,9 @@ export default function OCRPage() {
                                           item.normalized
                                         )
                                       }
-                                      className="mt-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                      className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
                                     >
-                                      Ignore
+                                      Mark as Reviewed
                                     </button>
                                   )}
 
@@ -1957,7 +2084,7 @@ export default function OCRPage() {
                                     <div className="mt-3 rounded-lg bg-gray-100 p-3">
 
                                       <p className="text-xs font-medium text-gray-600">
-                                        Review ignored.
+                                        ✓ Review completed
                                       </p>
 
                                     </div>
@@ -1969,92 +2096,98 @@ export default function OCRPage() {
                           )}
 
                         </div>
+
                       </div>
                     )}
 
-                    {/* WORD CONFIDENCE */}
+                    {/* DOCX */}
 
-                    <div>
+                    {words.length === 0 &&
+                      documentType === "docx" && (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
 
-                      <h3 className="mb-3 text-sm font-semibold text-gray-800">
-                        Word Confidence
-                      </h3>
+                          <p className="text-sm font-medium text-gray-700">
+                            Text Extraction Complete
+                          </p>
 
-                      <div className="max-h-96 space-y-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
+                          <p className="mt-2 text-sm leading-6 text-gray-500">
+                            DOCX processing extracts digital text directly and does not generate Tesseract OCR confidence data.
+                          </p>
 
-                        {words.map(
-                          (word, index) => (
-                            <div
-                              key={`${word.text}-${index}`}
-                              className={`flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${getWordStatusClass(
-                                word.confidence
-                              )}`}
-                            >
+                        </div>
+                      )}
 
-                              <span className="break-words font-medium">
-                                {
-                                  word.text
-                                }
-                              </span>
+                  </div>
 
-                              <div className="flex shrink-0 items-center gap-3">
+                </section>
 
-                                <span className="text-xs font-semibold">
-                                  {word.confidence.toFixed(
-                                    1
-                                  )}
-                                  %
-                                </span>
+                {/* LAYER 3 */}
 
-                                <span className="rounded-full bg-white/70 px-2 py-1 text-xs font-semibold">
-                                  {
-                                    getWordStatusLabel(
-                                      word.confidence
-                                    )
-                                  }
-                                </span>
+                <section className="mb-6 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
 
-                              </div>
+                  <div className="border-b border-green-100 bg-green-50 p-4 sm:p-6">
 
-                            </div>
-                          )
-                        )}
+                    <p className="text-xs font-bold uppercase tracking-wider text-green-600">
+                      Layer 3
+                    </p>
 
-                      </div>
-                    </div>
+                    <h2 className="mt-1 text-lg font-bold text-gray-800 sm:text-xl">
+                      Structured Final Copy
+                    </h2>
 
-                  </section>
-                )}
+                    <p className="mt-1 text-sm leading-6 text-gray-600">
+                      The final version based on the reviewed Layer 2 digital copy.
+                    </p>
+
+                  </div>
+
+                  <div className="p-4 sm:p-6">
+
+                    <textarea
+                      value={correctedText}
+                      onChange={(event) =>
+                        setCorrectedText(
+                          event.target.value
+                        )
+                      }
+                      rows={18}
+                      className="w-full resize-y rounded-lg border border-green-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                    />
+
+                    <p className="mt-3 text-xs leading-5 text-gray-400">
+                      Layer 3 contains the final corrected copy that will be saved to the database.
+                    </p>
+
+                  </div>
+
+                </section>
 
                 {/* SAVE */}
 
-                <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                     <div>
 
-                      <h2 className="text-lg font-semibold text-gray-800">
+                      <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
                         Save Document
                       </h2>
 
-                      <p className="mt-1 text-sm text-gray-500">
-                        The original file and processing
-                        result will be stored.
+                      <p className="mt-1 text-sm leading-6 text-gray-500">
+                        Save the original document, OCR result, final corrected copy, and confidence-based review data to the database.
                       </p>
 
                     </div>
 
                     <button
                       type="button"
-                      onClick={
-                        handleSaveOCRResult
-                      }
+                      onClick={handleSaveOCRResult}
                       disabled={
                         saving ||
                         !savedDocument
                       }
-                      className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                     >
                       {saving
                         ? "Saving..."
@@ -2069,8 +2202,11 @@ export default function OCRPage() {
             )}
 
           </div>
+
         </div>
+
       </main>
+
     </div>
   );
 }

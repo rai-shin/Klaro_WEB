@@ -264,6 +264,7 @@ export type OCRResultWhereInput = {
   correctedAt?: Prisma.DateTimeNullableFilter<"OCRResult"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"OCRResult"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"OCRResult"> | Date | string
+  words?: Prisma.OCRWordListRelationFilter
   document?: Prisma.XOR<Prisma.DocumentScalarRelationFilter, Prisma.DocumentWhereInput>
 }
 
@@ -278,6 +279,7 @@ export type OCRResultOrderByWithRelationInput = {
   correctedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  words?: Prisma.OCRWordOrderByRelationAggregateInput
   document?: Prisma.DocumentOrderByWithRelationInput
 }
 
@@ -295,6 +297,7 @@ export type OCRResultWhereUniqueInput = Prisma.AtLeast<{
   correctedAt?: Prisma.DateTimeNullableFilter<"OCRResult"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"OCRResult"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"OCRResult"> | Date | string
+  words?: Prisma.OCRWordListRelationFilter
   document?: Prisma.XOR<Prisma.DocumentScalarRelationFilter, Prisma.DocumentWhereInput>
 }, "id" | "documentId">
 
@@ -341,6 +344,7 @@ export type OCRResultCreateInput = {
   correctedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  words?: Prisma.OCRWordCreateNestedManyWithoutOcrResultInput
   document: Prisma.DocumentCreateNestedOneWithoutOcrResultInput
 }
 
@@ -355,6 +359,7 @@ export type OCRResultUncheckedCreateInput = {
   correctedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  words?: Prisma.OCRWordUncheckedCreateNestedManyWithoutOcrResultInput
 }
 
 export type OCRResultUpdateInput = {
@@ -366,6 +371,7 @@ export type OCRResultUpdateInput = {
   correctedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  words?: Prisma.OCRWordUpdateManyWithoutOcrResultNestedInput
   document?: Prisma.DocumentUpdateOneRequiredWithoutOcrResultNestedInput
 }
 
@@ -380,6 +386,7 @@ export type OCRResultUncheckedUpdateInput = {
   correctedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  words?: Prisma.OCRWordUncheckedUpdateManyWithoutOcrResultNestedInput
 }
 
 export type OCRResultCreateManyInput = {
@@ -475,6 +482,11 @@ export type OCRResultSumOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
 }
 
+export type OCRResultScalarRelationFilter = {
+  is?: Prisma.OCRResultWhereInput
+  isNot?: Prisma.OCRResultWhereInput
+}
+
 export type OCRResultCreateNestedOneWithoutDocumentInput = {
   create?: Prisma.XOR<Prisma.OCRResultCreateWithoutDocumentInput, Prisma.OCRResultUncheckedCreateWithoutDocumentInput>
   connectOrCreate?: Prisma.OCRResultCreateOrConnectWithoutDocumentInput
@@ -515,6 +527,20 @@ export type NullableFloatFieldUpdateOperationsInput = {
   divide?: number
 }
 
+export type OCRResultCreateNestedOneWithoutWordsInput = {
+  create?: Prisma.XOR<Prisma.OCRResultCreateWithoutWordsInput, Prisma.OCRResultUncheckedCreateWithoutWordsInput>
+  connectOrCreate?: Prisma.OCRResultCreateOrConnectWithoutWordsInput
+  connect?: Prisma.OCRResultWhereUniqueInput
+}
+
+export type OCRResultUpdateOneRequiredWithoutWordsNestedInput = {
+  create?: Prisma.XOR<Prisma.OCRResultCreateWithoutWordsInput, Prisma.OCRResultUncheckedCreateWithoutWordsInput>
+  connectOrCreate?: Prisma.OCRResultCreateOrConnectWithoutWordsInput
+  upsert?: Prisma.OCRResultUpsertWithoutWordsInput
+  connect?: Prisma.OCRResultWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OCRResultUpdateToOneWithWhereWithoutWordsInput, Prisma.OCRResultUpdateWithoutWordsInput>, Prisma.OCRResultUncheckedUpdateWithoutWordsInput>
+}
+
 export type OCRResultCreateWithoutDocumentInput = {
   originalText: string
   correctedText: string
@@ -524,6 +550,7 @@ export type OCRResultCreateWithoutDocumentInput = {
   correctedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  words?: Prisma.OCRWordCreateNestedManyWithoutOcrResultInput
 }
 
 export type OCRResultUncheckedCreateWithoutDocumentInput = {
@@ -536,6 +563,7 @@ export type OCRResultUncheckedCreateWithoutDocumentInput = {
   correctedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  words?: Prisma.OCRWordUncheckedCreateNestedManyWithoutOcrResultInput
 }
 
 export type OCRResultCreateOrConnectWithoutDocumentInput = {
@@ -563,6 +591,7 @@ export type OCRResultUpdateWithoutDocumentInput = {
   correctedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  words?: Prisma.OCRWordUpdateManyWithoutOcrResultNestedInput
 }
 
 export type OCRResultUncheckedUpdateWithoutDocumentInput = {
@@ -575,8 +604,104 @@ export type OCRResultUncheckedUpdateWithoutDocumentInput = {
   correctedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  words?: Prisma.OCRWordUncheckedUpdateManyWithoutOcrResultNestedInput
 }
 
+export type OCRResultCreateWithoutWordsInput = {
+  originalText: string
+  correctedText: string
+  confidence?: number | null
+  status?: string
+  processingMethod?: string | null
+  correctedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  document: Prisma.DocumentCreateNestedOneWithoutOcrResultInput
+}
+
+export type OCRResultUncheckedCreateWithoutWordsInput = {
+  id?: number
+  documentId: number
+  originalText: string
+  correctedText: string
+  confidence?: number | null
+  status?: string
+  processingMethod?: string | null
+  correctedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type OCRResultCreateOrConnectWithoutWordsInput = {
+  where: Prisma.OCRResultWhereUniqueInput
+  create: Prisma.XOR<Prisma.OCRResultCreateWithoutWordsInput, Prisma.OCRResultUncheckedCreateWithoutWordsInput>
+}
+
+export type OCRResultUpsertWithoutWordsInput = {
+  update: Prisma.XOR<Prisma.OCRResultUpdateWithoutWordsInput, Prisma.OCRResultUncheckedUpdateWithoutWordsInput>
+  create: Prisma.XOR<Prisma.OCRResultCreateWithoutWordsInput, Prisma.OCRResultUncheckedCreateWithoutWordsInput>
+  where?: Prisma.OCRResultWhereInput
+}
+
+export type OCRResultUpdateToOneWithWhereWithoutWordsInput = {
+  where?: Prisma.OCRResultWhereInput
+  data: Prisma.XOR<Prisma.OCRResultUpdateWithoutWordsInput, Prisma.OCRResultUncheckedUpdateWithoutWordsInput>
+}
+
+export type OCRResultUpdateWithoutWordsInput = {
+  originalText?: Prisma.StringFieldUpdateOperationsInput | string
+  correctedText?: Prisma.StringFieldUpdateOperationsInput | string
+  confidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  processingMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  correctedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  document?: Prisma.DocumentUpdateOneRequiredWithoutOcrResultNestedInput
+}
+
+export type OCRResultUncheckedUpdateWithoutWordsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  documentId?: Prisma.IntFieldUpdateOperationsInput | number
+  originalText?: Prisma.StringFieldUpdateOperationsInput | string
+  correctedText?: Prisma.StringFieldUpdateOperationsInput | string
+  confidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  processingMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  correctedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+
+/**
+ * Count Type OCRResultCountOutputType
+ */
+
+export type OCRResultCountOutputType = {
+  words: number
+}
+
+export type OCRResultCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  words?: boolean | OCRResultCountOutputTypeCountWordsArgs
+}
+
+/**
+ * OCRResultCountOutputType without action
+ */
+export type OCRResultCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OCRResultCountOutputType
+   */
+  select?: Prisma.OCRResultCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * OCRResultCountOutputType without action
+ */
+export type OCRResultCountOutputTypeCountWordsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.OCRWordWhereInput
+}
 
 
 export type OCRResultSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -590,7 +715,9 @@ export type OCRResultSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   correctedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  words?: boolean | Prisma.OCRResult$wordsArgs<ExtArgs>
   document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
+  _count?: boolean | Prisma.OCRResultCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["oCRResult"]>
 
 export type OCRResultSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -636,7 +763,9 @@ export type OCRResultSelectScalar = {
 
 export type OCRResultOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "documentId" | "originalText" | "correctedText" | "confidence" | "status" | "processingMethod" | "correctedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["oCRResult"]>
 export type OCRResultInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  words?: boolean | Prisma.OCRResult$wordsArgs<ExtArgs>
   document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
+  _count?: boolean | Prisma.OCRResultCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OCRResultIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
@@ -648,6 +777,7 @@ export type OCRResultIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Ex
 export type $OCRResultPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "OCRResult"
   objects: {
+    words: Prisma.$OCRWordPayload<ExtArgs>[]
     document: Prisma.$DocumentPayload<ExtArgs>
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -1055,6 +1185,7 @@ readonly fields: OCRResultFieldRefs;
  */
 export interface Prisma__OCRResultClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  words<T extends Prisma.OCRResult$wordsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OCRResult$wordsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OCRWordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   document<T extends Prisma.DocumentDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.DocumentDefaultArgs<ExtArgs>>): Prisma.Prisma__DocumentClient<runtime.Types.Result.GetResult<Prisma.$DocumentPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1493,6 +1624,30 @@ export type OCRResultDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * Limit how many OCRResults to delete.
    */
   limit?: number
+}
+
+/**
+ * OCRResult.words
+ */
+export type OCRResult$wordsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OCRWord
+   */
+  select?: Prisma.OCRWordSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the OCRWord
+   */
+  omit?: Prisma.OCRWordOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OCRWordInclude<ExtArgs> | null
+  where?: Prisma.OCRWordWhereInput
+  orderBy?: Prisma.OCRWordOrderByWithRelationInput | Prisma.OCRWordOrderByWithRelationInput[]
+  cursor?: Prisma.OCRWordWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.OCRWordScalarFieldEnum | Prisma.OCRWordScalarFieldEnum[]
 }
 
 /**

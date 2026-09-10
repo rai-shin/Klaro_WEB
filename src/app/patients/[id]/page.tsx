@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -74,6 +75,9 @@ export default function PatientDetailPage() {
   const [error, setError] =
     useState("");
 
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
   const [selectedDocument, setSelectedDocument] =
     useState<Document | null>(null);
 
@@ -121,16 +125,28 @@ export default function PatientDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Sidebar />
 
-        <main className="ml-64">
-          <Header />
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() =>
+            setSidebarOpen(false)
+          }
+        />
 
-          <div className="p-8">
+        <main className="min-h-screen lg:ml-64">
+
+          <Header
+            onMenuClick={() =>
+              setSidebarOpen(true)
+            }
+          />
+
+          <div className="px-4 py-5 sm:px-6 sm:py-6 lg:p-8">
             <p className="text-sm text-gray-500">
               Loading patient...
             </p>
           </div>
+
         </main>
       </div>
     );
@@ -139,17 +155,31 @@ export default function PatientDetailPage() {
   if (error || !patient) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Sidebar />
 
-        <main className="ml-64">
-          <Header />
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() =>
+            setSidebarOpen(false)
+          }
+        />
 
-          <div className="p-8">
-            <div className="rounded-xl bg-red-50 p-6 text-red-700">
+        <main className="min-h-screen lg:ml-64">
+
+          <Header
+            onMenuClick={() =>
+              setSidebarOpen(true)
+            }
+          />
+
+          <div className="px-4 py-5 sm:px-6 sm:py-6 lg:p-8">
+
+            <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700 sm:p-6">
               {error ||
                 "Patient not found."}
             </div>
+
           </div>
+
         </main>
       </div>
     );
@@ -165,20 +195,41 @@ export default function PatientDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar />
 
-      <main className="ml-64">
-        <Header />
+      {/* SIDEBAR */}
 
-        <div className="p-8">
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() =>
+          setSidebarOpen(false)
+        }
+      />
+
+      {/* MAIN */}
+
+      <main className="min-h-screen lg:ml-64">
+
+        {/* HEADER */}
+
+        <Header
+          onMenuClick={() =>
+            setSidebarOpen(true)
+          }
+        />
+
+        {/* CONTENT */}
+
+        <div className="px-4 py-5 sm:px-6 sm:py-6 lg:p-8">
+
           <div className="mx-auto max-w-6xl">
 
             {/* PAGE HEADER */}
 
-            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">
+              <div className="min-w-0">
+
+                <h1 className="break-words text-xl font-bold text-gray-800 sm:text-2xl">
                   {fullName}
                 </h1>
 
@@ -186,43 +237,45 @@ export default function PatientDetailPage() {
                   Student ID:{" "}
                   {patient.studentId}
                 </p>
+
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
 
                 <Link
                   href="/patients/manual"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-blue-700 sm:w-auto"
                 >
                   + Clinic Record
                 </Link>
 
                 <Link
                   href="/ocr"
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
                 >
                   Document Input
                 </Link>
 
                 <Link
                   href="/patients"
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
                 >
                   Back
                 </Link>
 
               </div>
+
             </div>
 
             {/* PATIENT INFORMATION */}
 
-            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
 
-              <h2 className="mb-5 text-lg font-semibold text-gray-800">
+              <h2 className="mb-5 text-base font-semibold text-gray-800 sm:text-lg">
                 Patient Information
               </h2>
 
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
                 <Info
                   label="Student ID"
@@ -280,7 +333,7 @@ export default function PatientDetailPage() {
                   }
                 />
 
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2 lg:col-span-2">
                   <Info
                     label="Address"
                     value={
@@ -291,14 +344,16 @@ export default function PatientDetailPage() {
                 </div>
 
               </div>
+
             </section>
 
             {/* CLINIC HISTORY */}
 
-            <section className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+            <section className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-              <div className="border-b border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-800">
+              <div className="border-b border-gray-200 p-4 sm:p-6">
+
+                <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
                   Clinic History
                 </h2>
 
@@ -306,11 +361,12 @@ export default function PatientDetailPage() {
                   Previous clinic visits and medical
                   records.
                 </p>
+
               </div>
 
               {patient.clinicRecords.length ===
               0 ? (
-                <div className="p-10 text-center">
+                <div className="p-6 text-center sm:p-10">
 
                   <p className="text-sm font-medium text-gray-700">
                     No clinic records yet.
@@ -329,7 +385,7 @@ export default function PatientDetailPage() {
                     (record) => (
                       <div
                         key={record.id}
-                        className="p-6"
+                        className="p-4 sm:p-6"
                       >
 
                         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -346,7 +402,7 @@ export default function PatientDetailPage() {
 
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
                           <Info
                             label="Chief Complaint"
@@ -420,15 +476,16 @@ export default function PatientDetailPage() {
 
                 </div>
               )}
+
             </section>
 
             {/* DOCUMENTS */}
 
-            <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-              <div className="border-b border-gray-200 p-6">
+              <div className="border-b border-gray-200 p-4 sm:p-6">
 
-                <h2 className="text-lg font-semibold text-gray-800">
+                <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
                   Documents & OCR Results
                 </h2>
 
@@ -441,9 +498,9 @@ export default function PatientDetailPage() {
 
               {patient.documents.length ===
               0 ? (
-                <div className="p-10 text-center">
+                <div className="p-6 text-center sm:p-10">
 
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-400">
                     DOC
                   </div>
 
@@ -458,7 +515,7 @@ export default function PatientDetailPage() {
 
                   <Link
                     href="/ocr"
-                    className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
                   >
                     Upload Document
                   </Link>
@@ -475,7 +532,7 @@ export default function PatientDetailPage() {
                       return (
                         <div
                           key={document.id}
-                          className="p-6"
+                          className="p-4 sm:p-6"
                         >
 
                           {/* DOCUMENT HEADER */}
@@ -484,21 +541,21 @@ export default function PatientDetailPage() {
 
                             <div className="min-w-0">
 
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-start gap-3">
 
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-semibold text-blue-600">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-xs font-semibold text-blue-600">
                                   DOC
                                 </div>
 
                                 <div className="min-w-0">
 
-                                  <h3 className="truncate font-semibold text-gray-800">
+                                  <h3 className="break-all text-sm font-semibold text-gray-800 sm:text-base">
                                     {
                                       document.fileName
                                     }
                                   </h3>
 
-                                  <p className="text-xs text-gray-400">
+                                  <p className="mt-1 break-all text-xs text-gray-400">
                                     {
                                       document.fileType
                                     }
@@ -551,7 +608,7 @@ export default function PatientDetailPage() {
 
                             {/* ACTIONS */}
 
-                            <div className="flex flex-wrap gap-2">
+                            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap lg:shrink-0">
 
                               {document.filePath && (
                                 <a
@@ -560,7 +617,7 @@ export default function PatientDetailPage() {
                                   }
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
                                 >
                                   Open Original
                                 </a>
@@ -574,7 +631,7 @@ export default function PatientDetailPage() {
                                       document
                                     )
                                   }
-                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                  className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 sm:w-auto"
                                 >
                                   View OCR
                                 </button>
@@ -586,7 +643,7 @@ export default function PatientDetailPage() {
 
                           {/* METADATA */}
 
-                          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+                          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
                             <Info
                               label="File Size"
@@ -642,23 +699,25 @@ export default function PatientDetailPage() {
             </section>
 
           </div>
+
         </div>
+
       </main>
 
       {/* OCR MODAL */}
 
       {selectedDocument && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
 
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white shadow-xl">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-5xl sm:rounded-xl">
 
             {/* MODAL HEADER */}
 
-            <div className="flex items-center justify-between border-b border-gray-200 p-6">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-gray-200 bg-white p-4 sm:p-6">
 
               <div className="min-w-0">
 
-                <h2 className="text-lg font-semibold text-gray-800">
+                <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
                   Document OCR Result
                 </h2>
 
@@ -677,7 +736,7 @@ export default function PatientDetailPage() {
                     null
                   )
                 }
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-50"
               >
                 Close
               </button>
@@ -686,7 +745,7 @@ export default function PatientDetailPage() {
 
             {/* MODAL CONTENT */}
 
-            <div className="space-y-6 p-6">
+            <div className="space-y-6 p-4 sm:p-6">
 
               {/* ORIGINAL FILE */}
 
@@ -694,16 +753,18 @@ export default function PatientDetailPage() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-                  <div>
+                  <div className="min-w-0">
+
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                       Original File
                     </p>
 
-                    <p className="mt-1 text-sm font-semibold text-gray-800">
+                    <p className="mt-1 break-all text-sm font-semibold text-gray-800">
                       {
                         selectedDocument.fileName
                       }
                     </p>
+
                   </div>
 
                   {selectedDocument.filePath && (
@@ -713,7 +774,7 @@ export default function PatientDetailPage() {
                       }
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-fit rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
+                      className="w-full rounded-lg bg-gray-800 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-gray-900 sm:w-auto"
                     >
                       Open Original File
                     </a>
@@ -727,7 +788,7 @@ export default function PatientDetailPage() {
 
               {selectedDocument.ocrResult ? (
                 <>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
                     <Info
                       label="Confidence"
@@ -786,7 +847,7 @@ export default function PatientDetailPage() {
                             .originalText
                         }
                         rows={16}
-                        className="w-full resize-none rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 outline-none"
+                        className="w-full resize-y rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 outline-none"
                       />
 
                     </div>
@@ -805,7 +866,7 @@ export default function PatientDetailPage() {
                             .correctedText
                         }
                         rows={16}
-                        className="w-full resize-none rounded-lg border border-blue-200 bg-blue-50/30 px-4 py-3 text-sm leading-6 text-gray-700 outline-none"
+                        className="w-full resize-y rounded-lg border border-blue-200 bg-blue-50/30 px-4 py-3 text-sm leading-6 text-gray-700 outline-none"
                       />
 
                     </div>
@@ -814,7 +875,7 @@ export default function PatientDetailPage() {
 
                 </>
               ) : (
-                <div className="rounded-lg bg-gray-50 p-8 text-center">
+                <div className="rounded-lg bg-gray-50 p-6 text-center sm:p-8">
 
                   <p className="text-sm font-medium text-gray-700">
                     This document has not been processed yet.
@@ -824,9 +885,12 @@ export default function PatientDetailPage() {
               )}
 
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 }
@@ -839,14 +903,16 @@ function Info({
   value: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
+
       <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
         {label}
       </p>
 
-      <p className="mt-1 break-words text-sm text-gray-700">
+      <p className="mt-1 break-words text-sm leading-6 text-gray-700">
         {value}
       </p>
+
     </div>
   );
 }
@@ -874,3 +940,4 @@ function formatFileSize(
     (1024 * 1024 * 1024)
   ).toFixed(1)} GB`;
 }
+

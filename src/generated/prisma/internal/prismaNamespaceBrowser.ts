@@ -54,7 +54,8 @@ export const ModelName = {
   Patient: 'Patient',
   ClinicRecord: 'ClinicRecord',
   Document: 'Document',
-  OCRResult: 'OCRResult'
+  OCRResult: 'OCRResult',
+  OCRWord: 'OCRWord'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -142,6 +143,22 @@ export const OCRResultScalarFieldEnum = {
 } as const
 
 export type OCRResultScalarFieldEnum = (typeof OCRResultScalarFieldEnum)[keyof typeof OCRResultScalarFieldEnum]
+
+
+export const OCRWordScalarFieldEnum = {
+  id: 'id',
+  ocrResultId: 'ocrResultId',
+  originalWord: 'originalWord',
+  confidence: 'confidence',
+  isFlagged: 'isFlagged',
+  suggestedWord: 'suggestedWord',
+  reviewDecision: 'reviewDecision',
+  occurrences: 'occurrences',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OCRWordScalarFieldEnum = (typeof OCRWordScalarFieldEnum)[keyof typeof OCRWordScalarFieldEnum]
 
 
 export const SortOrder = {

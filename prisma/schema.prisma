@@ -74,8 +74,34 @@ model OCRResult {
   status           String     @default("REVIEW")
   processingMethod String?
   correctedAt      DateTime?
+
+  words            OCRWord[]
+
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
   document         Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model OCRWord {
+  id               Int       @id @default(autoincrement())
+
+  ocrResultId      Int
+
+  originalWord     String
+
+  confidence       Float
+
+  isFlagged        Boolean   @default(false)
+
+  suggestedWord    String?
+
+  reviewDecision   String    @default("PENDING")
+
+  occurrences      Int       @default(1)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  ocrResult        OCRResult @relation(fields: [ocrResultId], references: [id], onDelete: Cascade)
 }

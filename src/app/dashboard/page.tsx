@@ -1,5 +1,7 @@
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
+
+import Link from "next/link";
+
+import AppLayout from "@/components/AppLayout";
 
 const stats = [
   {
@@ -26,37 +28,36 @@ const stats = [
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
+    <AppLayout>
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-7xl">
 
-      <main className="ml-64">
-        <Header />
-
-        <div className="p-8">
           {/* Welcome */}
-          <section className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-800">
+
+          <section className="mb-6 sm:mb-8">
+            <h1 className="text-xl font-bold text-gray-800 sm:text-2xl">
               Welcome to Klaro
             </h1>
 
-            <p className="mt-1 text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 sm:text-base">
               Manage school clinic patient records and documents
               efficiently.
             </p>
           </section>
 
           {/* Statistics */}
-          <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
             {stats.map((stat) => (
               <div
                 key={stat.title}
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
               >
                 <p className="text-sm font-medium text-gray-500">
                   {stat.title}
                 </p>
 
-                <p className="mt-3 text-3xl font-bold text-gray-800">
+                <p className="mt-3 text-2xl font-bold text-gray-800 sm:text-3xl">
                   {stat.value}
                 </p>
 
@@ -68,15 +69,19 @@ export default function DashboardPage() {
           </section>
 
           {/* Quick Actions */}
-          <section className="mt-8">
+
+          <section className="mt-6 sm:mt-8">
             <h2 className="mb-4 text-lg font-semibold text-gray-800">
               Quick Actions
             </h2>
 
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              <a
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
+
+              {/* Add Patient */}
+
+              <Link
                 href="/patients/add"
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md md:p-6 md:hover:-translate-y-1"
               >
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 text-xl text-blue-600">
                   +
@@ -89,11 +94,13 @@ export default function DashboardPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Create a new patient record.
                 </p>
-              </a>
+              </Link>
 
-              <a
+              {/* Manual Input */}
+
+              <Link
                 href="/patients/manual"
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md md:p-6 md:hover:-translate-y-1"
               >
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-50 text-xl text-green-600">
                   ☷
@@ -106,11 +113,13 @@ export default function DashboardPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Enter a clinic record manually.
                 </p>
-              </a>
+              </Link>
 
-              <a
+              {/* OCR */}
+
+              <Link
                 href="/ocr"
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md md:p-6 md:hover:-translate-y-1"
               >
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-50 text-xl text-purple-600">
                   ▣
@@ -123,12 +132,13 @@ export default function DashboardPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Upload a document and extract its text.
                 </p>
-              </a>
+              </Link>
             </div>
           </section>
 
           {/* Prototype Information */}
-          <section className="mt-8 rounded-xl border border-blue-100 bg-blue-50 p-6">
+
+          <section className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-5 sm:mt-8 sm:p-6">
             <h2 className="font-semibold text-blue-800">
               Prototype Information
             </h2>
@@ -140,8 +150,10 @@ export default function DashboardPage() {
               storage will be implemented progressively.
             </p>
           </section>
+
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
+

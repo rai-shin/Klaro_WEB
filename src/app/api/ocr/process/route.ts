@@ -8,12 +8,21 @@ import os from "os";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// --------------------------------------------------
+// TYPES
+// --------------------------------------------------
+
 type OCRWord = {
   text: string;
   confidence: number;
   originalConfidence?: number;
-  correctedText?: string;
+
+  // Suggestion is now separate from OCR text.
+  suggestion?: string | null;
+
+  // False means OCR text has NOT been changed.
   corrected?: boolean;
+
   bbox?: {
     x0: number;
     y0: number;
@@ -26,93 +35,83 @@ type OCRCandidate = {
   name: string;
   text: string;
   words: OCRWord[];
+
   tesseractConfidence: number;
+
   tokenCount: number;
   meaningfulWordCount: number;
   garbageRatio: number;
+
   bboxCoverage: number;
   horizontalCoverage: number;
   verticalCoverage: number;
+
   lineCount: number;
+
   quality: number;
   score: number;
+
   suspicious: boolean;
 };
 
+// --------------------------------------------------
+// CONFIGURATION
+// --------------------------------------------------
+
 const CONFIDENCE_THRESHOLD = 70;
 
-const CORRECTIONS: Record<string, string> = {
-  temparature: "temperature",
-  tempereture: "temperature",
-  temprature: "temperature",
-  tempurature: "temperature",
-  temperatuure: "temperature",
+// --------------------------------------------------
+// BASIC HELPERS
+// --------------------------------------------------
 
-  headake: "headache",
-  hedache: "headache",
-  headche: "headache",
-  hedake: "headache",
+function clamp(
+  value: number,
+  min: number,
+  max: number
+) {
+  return Math.min(
+    Math.max(value, min),
+    max
+  );
+}
 
-  patlent: "patient",
-  patien: "patient",
-  patiant: "patient",
+function normalizeWhitespace(
+  text: string
+) {
+  return text
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  fevar: "fever",
-  fevr: "fever",
+function normalizeToken(
+  text: string
+) {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(
+      /^[^a-z0-9]+|[^a-z0-9]+$/gi,
+      ""
+    );
+}
 
-  couhg: "cough",
-  coough: "cough",
+function cleanOCRText(
+  text: string
+) {
+  return text
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) =>
+      normalizeWhitespace(line)
+    )
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
 
-  vomitting: "vomiting",
-  vomting: "vomiting",
-
-  nausia: "nausea",
-  nauea: "nausea",
-
-  diarrhoea: "diarrhea",
-  diarhea: "diarrhea",
-  diahrea: "diarrhea",
-
-  medicaton: "medication",
-  medcation: "medication",
-
-  presciption: "prescription",
-  perscription: "prescription",
-
-  diagnsis: "diagnosis",
-  diagonsis: "diagnosis",
-
-  sympton: "symptom",
-  symtom: "symptom",
-
-  patholgy: "pathology",
-
-  infecton: "infection",
-  infecion: "infection",
-
-  inflamamation: "inflammation",
-  inflamation: "inflammation",
-
-  antibiotc: "antibiotic",
-
-  hypertenson: "hypertension",
-  hipertension: "hypertension",
-
-  diabtes: "diabetes",
-  diabeetes: "diabetes",
-
-  respiratry: "respiratory",
-
-  emergncy: "emergency",
-
-  hospitl: "hospital",
-
-  clinlc: "clinic",
-
-  he1p: "help",
-  he1th: "health",
-  hea1th: "health",
-};
+// --------------------------------------------------
+// SHORT WORDS ALLOWED
+// --------------------------------------------------
 
 const ALLOW_SHORT_WORDS = new Set([
   "a",
@@ -164,36 +163,16 @@ const ALLOW_SHORT_WORDS = new Set([
   "f",
 ]);
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function normalizeWhitespace(text: string) {
-  return text.replace(/\s+/g, " ").trim();
-}
-
-function normalizeToken(text: string) {
-  return text
-    .trim()
-    .toLowerCase()
-    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, "");
-}
-
-function cleanOCRText(text: string) {
-  return text
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) => normalizeWhitespace(line))
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-}
+// --------------------------------------------------
+// GARBAGE DETECTION
+// --------------------------------------------------
 
 function isProbablyGarbage(
   text: string,
   confidence: number
 ): boolean {
-  const normalized = normalizeToken(text);
+  const normalized =
+    normalizeToken(text);
 
   if (!normalized) {
     return true;
@@ -203,36 +182,49 @@ function isProbablyGarbage(
     return true;
   }
 
-  if (/^[^a-zA-Z0-9]+$/.test(text)) {
+  if (
+    /^[^a-zA-Z0-9]+$/.test(text)
+  ) {
     return true;
   }
 
-  if (/[<>{}\[\]\\|]/.test(text)) {
+  if (
+    /[<>{}\[\]\\|]/.test(text)
+  ) {
     return true;
   }
 
-  if (/^(.)\1{3,}$/i.test(normalized)) {
+  if (
+    /^(.)\1{3,}$/i.test(normalized)
+  ) {
     return true;
   }
 
-  if (normalized.length > 40) {
+  if (
+    normalized.length > 40
+  ) {
     return true;
   }
 
   if (
     normalized.length >= 5 &&
     !/[aeiou]/i.test(normalized) &&
-    !ALLOW_SHORT_WORDS.has(normalized)
+    !ALLOW_SHORT_WORDS.has(
+      normalized
+    )
   ) {
     return true;
   }
 
   const punctuationCount =
-    text.match(/[^a-zA-Z0-9\s]/g)?.length ?? 0;
+    text.match(
+      /[^a-zA-Z0-9\s]/g
+    )?.length ?? 0;
 
   if (
     text.length > 2 &&
-    punctuationCount / text.length > 0.6
+    punctuationCount / text.length >
+      0.6
   ) {
     return true;
   }
@@ -240,51 +232,12 @@ function isProbablyGarbage(
   return false;
 }
 
-function preserveCase(
-  original: string,
-  corrected: string
-) {
-  if (original === original.toUpperCase()) {
-    return corrected.toUpperCase();
-  }
-
-  if (
-    original.length > 0 &&
-    original[0] === original[0].toUpperCase()
-  ) {
-    return (
-      corrected.charAt(0).toUpperCase() +
-      corrected.slice(1)
-    );
-  }
-
-  return corrected;
-}
-
-function applyCorrection(text: string) {
-  const normalized = normalizeToken(text);
-
-  if (!normalized) {
-    return {
-      text,
-      corrected: false,
-    };
-  }
-
-  const correction = CORRECTIONS[normalized];
-
-  if (!correction || correction === normalized) {
-    return {
-      text,
-      corrected: false,
-    };
-  }
-
-  return {
-    text: preserveCase(text, correction),
-    corrected: true,
-  };
-}
+// --------------------------------------------------
+// PARSE HOCR
+// IMPORTANT:
+// Original OCR text is preserved.
+// No automatic correction happens here.
+// --------------------------------------------------
 
 function parseHOCR(
   hocr: string
@@ -296,55 +249,95 @@ function parseHOCR(
   const words: OCRWord[] = [];
 
   const wordRegex =
-  /<span[^>]*class=['"][^'"]*(?:ocrx_word|ocr_word)[^'"]*['"][^>]*title=['"]([^'"]*)['"][^>]*>([\s\S]*?)<\/span>/gi;
-  
-  let match: RegExpExecArray | null;
+    /<span[^>]*class=['"][^'"]*(?:ocrx_word|ocr_word)[^'"]*['"][^>]*title=['"]([^'"]*)['"][^>]*>([\s\S]*?)<\/span>/gi;
 
-  while ((match = wordRegex.exec(hocr)) !== null) {
-    const title = match[1];
-    const rawText = match[2]
-      .replace(/<[^>]+>/g, "")
-      .trim();
+  let match:
+    | RegExpExecArray
+    | null;
+
+  while (
+    (match =
+      wordRegex.exec(hocr)) !== null
+  ) {
+    const title =
+      match[1];
+
+    const rawText =
+      match[2]
+        .replace(
+          /<[^>]+>/g,
+          ""
+        )
+        .trim();
 
     if (!rawText) {
       continue;
     }
 
-    const bboxMatch = title.match(
-      /bbox\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/i
-    );
+    const bboxMatch =
+      title.match(
+        /bbox\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/i
+      );
 
-    const confidenceMatch = title.match(
-      /x_wconf\s+(-?\d+(?:\.\d+)?)/i
-    );
+    const confidenceMatch =
+      title.match(
+        /x_wconf\s+(-?\d+(?:\.\d+)?)/i
+      );
 
-    const confidence = confidenceMatch
-      ? Number(confidenceMatch[1])
-      : 0;
+    const confidence =
+      confidenceMatch
+        ? Number(
+            confidenceMatch[1]
+          )
+        : 0;
 
-    const bbox = bboxMatch
-      ? {
-          x0: Number(bboxMatch[1]),
-          y0: Number(bboxMatch[2]),
-          x1: Number(bboxMatch[3]),
-          y1: Number(bboxMatch[4]),
-        }
-      : undefined;
+    const bbox =
+      bboxMatch
+        ? {
+            x0: Number(
+              bboxMatch[1]
+            ),
 
-    const correction = applyCorrection(rawText);
+            y0: Number(
+              bboxMatch[2]
+            ),
 
+            x1: Number(
+              bboxMatch[3]
+            ),
+
+            y1: Number(
+              bboxMatch[4]
+            ),
+          }
+        : undefined;
+
+    // IMPORTANT:
+    // Preserve exactly what OCR returned.
     words.push({
-      text: correction.text,
+      text: rawText,
+
       confidence,
-      originalConfidence: confidence,
-      correctedText: correction.text,
-      corrected: correction.corrected,
+
+      originalConfidence:
+        confidence,
+
+      suggestion: null,
+
+      corrected: false,
+
       bbox,
     });
   }
 
   return words;
 }
+
+// --------------------------------------------------
+// PARSE TSV
+// IMPORTANT:
+// Original OCR text is preserved.
+// --------------------------------------------------
 
 function parseTSV(
   tsv: string
@@ -353,7 +346,8 @@ function parseTSV(
     return [];
   }
 
-  const lines = tsv.split(/\r?\n/);
+  const lines =
+    tsv.split(/\r?\n/);
 
   if (lines.length < 2) {
     return [];
@@ -361,51 +355,89 @@ function parseTSV(
 
   const words: OCRWord[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
+  for (
+    let i = 1;
+    i < lines.length;
+    i++
+  ) {
+    const line =
+      lines[i];
 
     if (!line.trim()) {
       continue;
     }
 
-    const parts = line.split("\t");
+    const parts =
+      line.split("\t");
 
-    if (parts.length < 12) {
+    if (
+      parts.length < 12
+    ) {
       continue;
     }
 
-    const level = Number(parts[0]);
+    const level =
+      Number(parts[0]);
 
+    // Level 5 = word
     if (level !== 5) {
       continue;
     }
 
-    const left = Number(parts[6]);
-    const top = Number(parts[7]);
-    const width = Number(parts[8]);
-    const height = Number(parts[9]);
-    const confidence = Number(parts[10]);
-    const rawText = parts.slice(11).join("\t").trim();
+    const left =
+      Number(parts[6]);
+
+    const top =
+      Number(parts[7]);
+
+    const width =
+      Number(parts[8]);
+
+    const height =
+      Number(parts[9]);
+
+    const confidence =
+      Number(parts[10]);
+
+    const rawText =
+      parts
+        .slice(11)
+        .join("\t")
+        .trim();
 
     if (!rawText) {
       continue;
     }
 
-    const correction = applyCorrection(rawText);
-
+    // IMPORTANT:
+    // Do NOT automatically change rawText.
     words.push({
-      text: correction.text,
+      text: rawText,
+
       confidence:
-        Number.isFinite(confidence) ? confidence : 0,
+        Number.isFinite(confidence)
+          ? confidence
+          : 0,
+
       originalConfidence:
-        Number.isFinite(confidence) ? confidence : 0,
-      correctedText: correction.text,
-      corrected: correction.corrected,
+        Number.isFinite(confidence)
+          ? confidence
+          : 0,
+
+      suggestion: null,
+
+      corrected: false,
+
       bbox: {
         x0: left,
+
         y0: top,
-        x1: left + width,
-        y1: top + height,
+
+        x1:
+          left + width,
+
+        y1:
+          top + height,
       },
     });
   }
@@ -413,122 +445,205 @@ function parseTSV(
   return words;
 }
 
+// --------------------------------------------------
+// REMOVE DUPLICATES
+// --------------------------------------------------
+
 function deduplicateWords(
   words: OCRWord[]
 ): OCRWord[] {
   const result: OCRWord[] = [];
 
-  for (const word of words) {
+  for (
+    const word of words
+  ) {
     if (!word.text.trim()) {
       continue;
     }
 
-    const duplicate = result.find((existing) => {
-      if (
-        existing.text.toLowerCase() !==
-        word.text.toLowerCase()
-      ) {
-        return false;
-      }
+    const duplicate =
+      result.find(
+        (existing) => {
+          if (
+            existing.text.toLowerCase() !==
+            word.text.toLowerCase()
+          ) {
+            return false;
+          }
 
-      if (!existing.bbox || !word.bbox) {
-        return false;
-      }
+          if (
+            !existing.bbox ||
+            !word.bbox
+          ) {
+            return false;
+          }
 
-      const xDistance = Math.abs(
-        existing.bbox.x0 - word.bbox.x0
+          const xDistance =
+            Math.abs(
+              existing.bbox.x0 -
+                word.bbox.x0
+            );
+
+          const yDistance =
+            Math.abs(
+              existing.bbox.y0 -
+                word.bbox.y0
+            );
+
+          return (
+            xDistance < 5 &&
+            yDistance < 5
+          );
+        }
       );
-
-      const yDistance = Math.abs(
-        existing.bbox.y0 - word.bbox.y0
-      );
-
-      return xDistance < 5 && yDistance < 5;
-    });
 
     if (!duplicate) {
       result.push(word);
+
       continue;
     }
 
-    if (word.confidence > duplicate.confidence) {
-      duplicate.confidence = word.confidence;
+    if (
+      word.confidence >
+      duplicate.confidence
+    ) {
+      duplicate.confidence =
+        word.confidence;
+
       duplicate.originalConfidence =
         word.originalConfidence;
-      duplicate.bbox = word.bbox;
+
+      duplicate.bbox =
+        word.bbox;
     }
   }
 
   return result;
 }
 
+// --------------------------------------------------
+// BUILD TEXT FROM WORD POSITIONS
+// --------------------------------------------------
+
 function buildTextFromWords(
   words: OCRWord[]
 ): string {
-  if (words.length === 0) {
+  if (
+    words.length === 0
+  ) {
     return "";
   }
 
-  const wordsWithBbox = words.filter(
-    (word) => word.bbox
-  );
+  const wordsWithBbox =
+    words.filter(
+      (word) =>
+        word.bbox
+    );
 
-  if (wordsWithBbox.length < 2) {
+  if (
+    wordsWithBbox.length < 2
+  ) {
     return cleanOCRText(
-      words.map((word) => word.text).join(" ")
+      words
+        .map(
+          (word) =>
+            word.text
+        )
+        .join(" ")
     );
   }
 
-  const sorted = [...wordsWithBbox].sort((a, b) => {
-    const ay = a.bbox!.y0;
-    const by = b.bbox!.y0;
+  const sorted =
+    [...wordsWithBbox].sort(
+      (a, b) => {
+        const ay =
+          a.bbox!.y0;
 
-    if (Math.abs(ay - by) > 12) {
-      return ay - by;
-    }
+        const by =
+          b.bbox!.y0;
 
-    return a.bbox!.x0 - b.bbox!.x0;
-  });
+        if (
+          Math.abs(
+            ay - by
+          ) > 12
+        ) {
+          return ay - by;
+        }
 
-  const lines: OCRWord[][] = [];
+        return (
+          a.bbox!.x0 -
+          b.bbox!.x0
+        );
+      }
+    );
 
-  for (const word of sorted) {
-    const currentLine = lines[lines.length - 1];
+  const lines:
+    OCRWord[][] = [];
+
+  for (
+    const word of sorted
+  ) {
+    const currentLine =
+      lines[
+        lines.length - 1
+      ];
 
     if (!currentLine) {
-      lines.push([word]);
+      lines.push([
+        word,
+      ]);
+
       continue;
     }
 
     const currentY =
       currentLine.reduce(
-        (sum, item) => sum + item.bbox!.y0,
+        (sum, item) =>
+          sum +
+          item.bbox!.y0,
         0
-      ) / currentLine.length;
+      ) /
+      currentLine.length;
 
     if (
-      Math.abs(word.bbox!.y0 - currentY) <= 12
+      Math.abs(
+        word.bbox!.y0 -
+          currentY
+      ) <= 12
     ) {
-      currentLine.push(word);
+      currentLine.push(
+        word
+      );
     } else {
-      lines.push([word]);
+      lines.push([
+        word,
+      ]);
     }
   }
 
   return cleanOCRText(
     lines
-      .map((line) =>
-        line
-          .sort(
-            (a, b) =>
-              a.bbox!.x0 - b.bbox!.x0
-          )
-          .map((word) => word.text)
-          .join(" ")
+      .map(
+        (line) =>
+          line
+            .sort(
+              (a, b) =>
+                a.bbox!.x0 -
+                b.bbox!.x0
+            )
+            .map(
+              (word) =>
+                word.text
+            )
+            .join(" ")
       )
       .join("\n")
   );
 }
+
+// --------------------------------------------------
+// CALCULATE CANDIDATE METRICS
+// --------------------------------------------------
 
 function calculateCandidateMetrics(
   words: OCRWord[],
@@ -537,45 +652,59 @@ function calculateCandidateMetrics(
   imageWidth: number,
   imageHeight: number
 ) {
-  const tokenCount = words.length;
+  const tokenCount =
+    words.length;
 
-  const meaningfulWords = words.filter(
-    (word) =>
-      !isProbablyGarbage(
-        word.text,
-        word.confidence
-      )
-  );
+  const meaningfulWords =
+    words.filter(
+      (word) =>
+        !isProbablyGarbage(
+          word.text,
+          word.confidence
+        )
+    );
 
   const meaningfulWordCount =
     meaningfulWords.length;
 
   const garbageCount =
-    tokenCount - meaningfulWordCount;
+    tokenCount -
+    meaningfulWordCount;
 
   const garbageRatio =
     tokenCount > 0
-      ? garbageCount / tokenCount
+      ? garbageCount /
+        tokenCount
       : 1;
 
+  // Average individual word confidence
   const wordConfidence =
     tokenCount > 0
       ? words.reduce(
-          (sum, word) => sum + word.confidence,
+          (sum, word) =>
+            sum +
+            word.confidence,
           0
         ) / tokenCount
       : 0;
 
+  // Combine word confidence with
+  // Tesseract's overall confidence.
   const combinedConfidence =
     wordConfidence * 0.65 +
-    tesseractConfidence * 0.35;
+    tesseractConfidence *
+      0.35;
 
-  const wordsWithBbox = words.filter(
-    (word) => word.bbox
-  );
+  const wordsWithBbox =
+    words.filter(
+      (word) =>
+        word.bbox
+    );
 
   let bboxCoverage = 0;
+
   let horizontalCoverage = 0;
+
   let verticalCoverage = 0;
 
   if (
@@ -583,31 +712,71 @@ function calculateCandidateMetrics(
     imageWidth > 0 &&
     imageHeight > 0
   ) {
-    let minX = imageWidth;
-    let minY = imageHeight;
+    let minX =
+      imageWidth;
+
+    let minY =
+      imageHeight;
+
     let maxX = 0;
+
     let maxY = 0;
 
-    for (const word of wordsWithBbox) {
-      const bbox = word.bbox!;
+    for (
+      const word of wordsWithBbox
+    ) {
+      const bbox =
+        word.bbox!;
 
-      minX = Math.min(minX, bbox.x0);
-      minY = Math.min(minY, bbox.y0);
-      maxX = Math.max(maxX, bbox.x1);
-      maxY = Math.max(maxY, bbox.y1);
+      minX = Math.min(
+        minX,
+        bbox.x0
+      );
+
+      minY = Math.min(
+        minY,
+        bbox.y0
+      );
+
+      maxX = Math.max(
+        maxX,
+        bbox.x1
+      );
+
+      maxY = Math.max(
+        maxY,
+        bbox.y1
+      );
     }
 
     const width =
-      clamp(maxX - minX, 0, imageWidth);
+      clamp(
+        maxX - minX,
+        0,
+        imageWidth
+      );
 
     const height =
-      clamp(maxY - minY, 0, imageHeight);
+      clamp(
+        maxY - minY,
+        0,
+        imageHeight
+      );
 
     horizontalCoverage =
-      clamp(width / imageWidth, 0, 1);
+      clamp(
+        width / imageWidth,
+        0,
+        1
+      );
 
     verticalCoverage =
-      clamp(height / imageHeight, 0, 1);
+      clamp(
+        height /
+          imageHeight,
+        0,
+        1
+      );
 
     bboxCoverage =
       horizontalCoverage *
@@ -616,46 +785,78 @@ function calculateCandidateMetrics(
 
   let lineCount = 0;
 
-  if (wordsWithBbox.length > 0) {
-    const sorted = [...wordsWithBbox].sort(
-      (a, b) =>
-        a.bbox!.y0 - b.bbox!.y0
-    );
-
-    const lineYs: number[] = [];
-
-    for (const word of sorted) {
-      const y = word.bbox!.y0;
-
-      const existingLine = lineYs.find(
-        (lineY) =>
-          Math.abs(lineY - y) <= 12
+  if (
+    wordsWithBbox.length > 0
+  ) {
+    const sorted =
+      [...wordsWithBbox].sort(
+        (a, b) =>
+          a.bbox!.y0 -
+          b.bbox!.y0
       );
 
-      if (existingLine === undefined) {
+    const lineYs:
+      number[] = [];
+
+    for (
+      const word of sorted
+    ) {
+      const y =
+        word.bbox!.y0;
+
+      const existingLine =
+        lineYs.find(
+          (lineY) =>
+            Math.abs(
+              lineY - y
+            ) <= 12
+        );
+
+      if (
+        existingLine ===
+        undefined
+      ) {
         lineYs.push(y);
       }
     }
 
-    lineCount = lineYs.length;
+    lineCount =
+      lineYs.length;
   } else {
-    lineCount = rawText
-      .split("\n")
-      .filter(Boolean).length;
+    lineCount =
+      rawText
+        .split("\n")
+        .filter(Boolean)
+        .length;
   }
 
   const tokenScore =
-    clamp(tokenCount / 5, 0, 1) * 100;
+    clamp(
+      tokenCount / 5,
+      0,
+      1
+    ) * 100;
 
   const meaningfulScore =
     tokenCount > 0
-      ? (meaningfulWordCount / tokenCount) * 100
+      ? (meaningfulWordCount /
+          tokenCount) *
+        100
       : 0;
+
+  // OCR QUALITY FORMULA
+  //
+  // 55% Combined OCR confidence
+  // 25% Meaningful word ratio
+  // 15% Garbage detection quality
+  //  5% Minimum token quality
 
   const quality =
     combinedConfidence * 0.55 +
     meaningfulScore * 0.25 +
-    (100 - garbageRatio * 100) * 0.15 +
+    (100 -
+      garbageRatio * 100) *
+      0.15 +
     tokenScore * 0.05;
 
   const suspicious =
@@ -666,26 +867,50 @@ function calculateCandidateMetrics(
   const score =
     quality -
     garbageRatio * 25 +
-    Math.min(lineCount, 10) * 0.5;
+    Math.min(
+      lineCount,
+      10
+    ) *
+      0.5;
 
   return {
     tokenCount,
+
     meaningfulWordCount,
+
     garbageRatio,
+
     bboxCoverage,
+
     horizontalCoverage,
+
     verticalCoverage,
+
     lineCount,
-    quality: clamp(quality, 0, 100),
+
+    quality:
+      clamp(
+        quality,
+        0,
+        100
+      ),
+
     score,
+
     suspicious,
   };
 }
 
+// --------------------------------------------------
+// SELECT BEST OCR CANDIDATE
+// --------------------------------------------------
+
 function selectBestCandidate(
   candidates: OCRCandidate[]
 ): OCRCandidate {
-  if (candidates.length === 0) {
+  if (
+    candidates.length === 0
+  ) {
     throw new Error(
       "No OCR candidates were produced."
     );
@@ -694,36 +919,54 @@ function selectBestCandidate(
   const strongCandidates =
     candidates.filter(
       (candidate) =>
-        candidate.tesseractConfidence >= 50 &&
-        candidate.garbageRatio <= 0.35 &&
+        candidate.tesseractConfidence >=
+          50 &&
+        candidate.garbageRatio <=
+          0.35 &&
         !candidate.suspicious
     );
 
   const pool =
-    strongCandidates.length > 0
+    strongCandidates.length >
+    0
       ? strongCandidates
       : candidates;
 
-  const sorted = [...pool].sort(
-    (a, b) => b.score - a.score
-  );
+  const sorted =
+    [...pool].sort(
+      (a, b) =>
+        b.score -
+        a.score
+    );
 
   return sorted[0];
 }
+
+// --------------------------------------------------
+// CREATE IMAGE VARIANTS
+// --------------------------------------------------
 
 async function createImageVariants(
   inputPath: string,
   tempDir: string
 ) {
   const metadata =
-    await sharp(inputPath).metadata();
+    await sharp(
+      inputPath
+    ).metadata();
 
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
+  const width =
+    metadata.width ?? 0;
+
+  const height =
+    metadata.height ?? 0;
 
   let scale = 1;
 
-  if (width > 0 && width < 800) {
+  if (
+    width > 0 &&
+    width < 800
+  ) {
     scale = 3;
   } else if (
     width > 0 &&
@@ -732,38 +975,60 @@ async function createImageVariants(
     scale = 2;
   }
 
-  const originalPath = path.join(
-    tempDir,
-    "original.png"
-  );
+  const originalPath =
+    path.join(
+      tempDir,
+      "original.png"
+    );
 
-  const grayscalePath = path.join(
-    tempDir,
-    "grayscale.png"
-  );
+  const grayscalePath =
+    path.join(
+      tempDir,
+      "grayscale.png"
+    );
 
-  let originalPipeline = sharp(inputPath);
+  let originalPipeline =
+    sharp(inputPath);
 
   if (scale > 1) {
     originalPipeline =
       originalPipeline.resize({
-        width: Math.round(width * scale),
-        height: Math.round(height * scale),
+        width:
+          Math.round(
+            width * scale
+          ),
+
+        height:
+          Math.round(
+            height * scale
+          ),
+
         fit: "fill",
       });
   }
 
   await originalPipeline
     .png()
-    .toFile(originalPath);
+    .toFile(
+      originalPath
+    );
 
-  let grayscalePipeline = sharp(inputPath);
+  let grayscalePipeline =
+    sharp(inputPath);
 
   if (scale > 1) {
     grayscalePipeline =
       grayscalePipeline.resize({
-        width: Math.round(width * scale),
-        height: Math.round(height * scale),
+        width:
+          Math.round(
+            width * scale
+          ),
+
+        height:
+          Math.round(
+            height * scale
+          ),
+
         fit: "fill",
       });
   }
@@ -771,72 +1036,117 @@ async function createImageVariants(
   await grayscalePipeline
     .grayscale()
     .png()
-    .toFile(grayscalePath);
+    .toFile(
+      grayscalePath
+    );
 
   return {
     variants: [
       {
         name: "ORIGINAL",
-        path: originalPath,
+
+        path:
+          originalPath,
       },
+
       {
         name: "GRAYSCALE",
-        path: grayscalePath,
+
+        path:
+          grayscalePath,
       },
     ],
-    width: Math.round(width * scale),
-    height: Math.round(height * scale),
+
+    width:
+      Math.round(
+        width * scale
+      ),
+
+    height:
+      Math.round(
+        height * scale
+      ),
   };
 }
 
+// --------------------------------------------------
+// RECOGNIZE IMAGE
+// --------------------------------------------------
+
 async function recognizeImage(
   worker: Awaited<
-    ReturnType<typeof createWorker>
+    ReturnType<
+      typeof createWorker
+    >
   >,
+
   imagePath: string,
+
   psm: PSM,
+
   name: string,
+
   imageWidth: number,
+
   imageHeight: number
 ): Promise<OCRCandidate> {
   await worker.setParameters({
-    tessedit_pageseg_mode: psm,
-    preserve_interword_spaces: "1",
-    user_defined_dpi: "300",
+    tessedit_pageseg_mode:
+      psm,
+
+    preserve_interword_spaces:
+      "1",
+
+    user_defined_dpi:
+      "300",
   });
 
-  const result = await worker.recognize(
-    imagePath,
-    {},
-    {
-      text: true,
-      hocr: true,
-      tsv: true,
-    }
-  );
+  const result =
+    await worker.recognize(
+      imagePath,
+      {},
+      {
+        text: true,
 
-  const rawText = cleanOCRText(
-    result.data.text ?? ""
-  );
+        hocr: true,
 
-  const hocrWords = parseHOCR(
-    result.data.hocr ?? ""
-  );
+        tsv: true,
+      }
+    );
 
-  const tsvWords = parseTSV(
-    result.data.tsv ?? ""
-  );
+  const rawText =
+    cleanOCRText(
+      result.data.text ?? ""
+    );
+
+  const hocrWords =
+    parseHOCR(
+      result.data.hocr ?? ""
+    );
+
+  const tsvWords =
+    parseTSV(
+      result.data.tsv ?? ""
+    );
 
   let words =
     hocrWords.length > 0
       ? hocrWords
       : tsvWords;
 
-  words = deduplicateWords(words);
+  words =
+    deduplicateWords(
+      words
+    );
 
-  const finalText =
+  // IMPORTANT:
+  // Build text using ORIGINAL OCR words.
+  // No corrections happen here.
+  const originalText =
     words.length > 0
-      ? buildTextFromWords(words)
+      ? buildTextFromWords(
+          words
+        )
       : rawText;
 
   const tesseractConfidence =
@@ -849,7 +1159,7 @@ async function recognizeImage(
   const metrics =
     calculateCandidateMetrics(
       words,
-      finalText,
+      originalText,
       tesseractConfidence,
       imageWidth,
       imageHeight
@@ -857,203 +1167,181 @@ async function recognizeImage(
 
   console.log(
     `[Klaro OCR] ${name}: ` +
-      `quality=${metrics.quality.toFixed(2)}, ` +
+      `quality=${metrics.quality.toFixed(
+        2
+      )}, ` +
       `tokens=${metrics.tokenCount}, ` +
       `meaningful=${metrics.meaningfulWordCount}, ` +
       `confidence=${tesseractConfidence}, ` +
-      `garbage=${metrics.garbageRatio.toFixed(3)}, ` +
+      `garbage=${metrics.garbageRatio.toFixed(
+        3
+      )}, ` +
       `suspicious=${metrics.suspicious}`
   );
 
   return {
     name,
-    text: finalText,
+
+    text:
+      originalText,
+
     words,
+
     tesseractConfidence,
+
     ...metrics,
   };
 }
 
+// --------------------------------------------------
+// POST
+// --------------------------------------------------
+
 export async function POST(
   request: NextRequest
 ) {
-  const requestStart = Date.now();
+  const requestStart =
+    Date.now();
 
-  let tempDir: string | null = null;
+  let tempDir:
+    | string
+    | null = null;
 
   let worker:
     | Awaited<
-        ReturnType<typeof createWorker>
+        ReturnType<
+          typeof createWorker
+        >
       >
     | null = null;
 
   console.log(
-    "[Klaro OCR TIMING] ===== OCR REQUEST START ====="
+    "[Klaro OCR] ===== OCR REQUEST START ====="
   );
 
   try {
+    // ----------------------------------------------
+    // RECEIVE FILE
+    // ----------------------------------------------
+
     const formData =
       await request.formData();
 
-    console.log(
-      `[Klaro OCR TIMING] request.formData() complete: ${
-        Date.now() - requestStart
-      }ms`
-    );
+    const file =
+      formData.get("file");
 
-    const file = formData.get("file");
-
-    if (!(file instanceof File)) {
+    if (
+      !(file instanceof File)
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "No image file was uploaded.",
+
+          message:
+            "No image file was uploaded.",
         },
-        { status: 400 }
+
+        {
+          status: 400,
+        }
       );
     }
 
     console.log(
-      `[Klaro OCR TIMING] File received: ${file.name}`
+      `[Klaro OCR] File received: ${file.name}`
     );
 
     console.log(
-      `[Klaro OCR TIMING] File type: ${file.type}`
+      `[Klaro OCR] File type: ${file.type}`
     );
 
     console.log(
-      `[Klaro OCR TIMING] File size: ${file.size} bytes`
+      `[Klaro OCR] File size: ${file.size} bytes`
     );
 
-    const tempStart = Date.now();
+    // ----------------------------------------------
+    // TEMP DIRECTORY
+    // ----------------------------------------------
 
-    tempDir = await fs.mkdtemp(
+    tempDir =
+      await fs.mkdtemp(
+        path.join(
+          os.tmpdir(),
+          "klaro-ocr-"
+        )
+      );
+
+    const inputPath =
       path.join(
-        os.tmpdir(),
-        "klaro-ocr-"
-      )
-    );
-
-    console.log(
-      `[Klaro OCR TIMING] temporary directory created: ${
-        Date.now() - requestStart
-      }ms`
-    );
-
-    const inputPath = path.join(
-      tempDir,
-      "input"
-    );
+        tempDir,
+        "input"
+      );
 
     const arrayBuffer =
       await file.arrayBuffer();
 
     const buffer =
-      Buffer.from(arrayBuffer);
-
-    console.log(
-      `[Klaro OCR TIMING] file converted to Buffer: ${
-        Date.now() - requestStart
-      }ms`
-    );
+      Buffer.from(
+        arrayBuffer
+      );
 
     await fs.writeFile(
       inputPath,
       buffer
     );
 
-    console.log(
-      `[Klaro OCR TIMING] input image written to disk: ${
-        Date.now() - requestStart
-      }ms`
-    );
-
-    console.log(
-      "[Klaro OCR TIMING] Starting image preprocessing..."
-    );
-
-    const preprocessStart = Date.now();
+    // ----------------------------------------------
+    // PREPROCESS IMAGE
+    // ----------------------------------------------
 
     const {
       variants,
       width,
       height,
-    } = await createImageVariants(
-      inputPath,
-      tempDir
-    );
+    } =
+      await createImageVariants(
+        inputPath,
+        tempDir
+      );
 
     console.log(
-      `[Klaro OCR TIMING] image preprocessing complete: ${
-        Date.now() - preprocessStart
-      }ms`
-    );
-
-    console.log(
-      `[Klaro OCR TIMING] Variants created: ${variants
-        .map((variant) => variant.name)
+      `[Klaro OCR] Variants: ${variants
+        .map(
+          (variant) =>
+            variant.name
+        )
         .join(", ")}`
     );
 
-    console.log(
-      "[Klaro OCR TIMING] Starting Tesseract worker creation..."
-    );
+    // ----------------------------------------------
+    // CREATE TESSERACT WORKER
+    // ----------------------------------------------
 
-    const workerStart =
-      Date.now();
-
-    /*
-     * IMPORTANT:
-     *
-     * Do NOT manually specify workerPath here.
-     *
-     * Tesseract.js resolves its Node worker
-     * internally. Manually pointing to:
-     *
-     * node_modules/tesseract.js/src/worker-script/node/index.js
-     *
-     * can break on Vercel because the deployed
-     * filesystem/package layout is different.
-     */
     worker =
-      await createWorker("eng", 1);
+      await createWorker(
+        "eng",
+        1
+      );
 
-    console.log(
-      `[Klaro OCR TIMING] Tesseract worker created in ${
-        Date.now() - workerStart
-      }ms`
-    );
-
-    console.log(
-      `[Klaro OCR TIMING] Tesseract worker ready: ${
-        Date.now() - requestStart
-      }ms`
-    );
+    // ----------------------------------------------
+    // OCR CANDIDATES
+    // ----------------------------------------------
 
     const selectedVariants =
       variants.filter(
         (variant) =>
-          variant.name === "ORIGINAL" ||
-          variant.name === "GRAYSCALE"
+          variant.name ===
+            "ORIGINAL" ||
+          variant.name ===
+            "GRAYSCALE"
       );
 
-    console.log(
-      `[Klaro OCR TIMING] Selected variants: ${selectedVariants
-        .map((variant) => variant.name)
-        .join(", ")}`
-    );
+    const candidates:
+      OCRCandidate[] = [];
 
-    const candidates: OCRCandidate[] =
-      [];
-
-    for (const variant of selectedVariants) {
-      const candidateStart =
-        Date.now();
-
-      console.log(
-        `[Klaro OCR TIMING] >>> Starting ${variant.name} / AUTO`
-      );
-
+    for (
+      const variant of selectedVariants
+    ) {
       try {
         const candidate =
           await recognizeImage(
@@ -1065,89 +1353,61 @@ export async function POST(
             height
           );
 
-        candidates.push(candidate);
-
-        console.log(
-          `[Klaro OCR TIMING] <<< ${variant.name} / AUTO complete in ${
-            Date.now() - candidateStart
-          }ms`
-        );
-
-        console.log(
-          `[Klaro OCR TIMING] ${variant.name} / AUTO complete: ${
-            Date.now() - requestStart
-          }ms`
+        candidates.push(
+          candidate
         );
       } catch (error) {
         console.error(
-          `[Klaro OCR] ${variant.name} AUTO failed:`,
+          `[Klaro OCR] ${variant.name} failed:`,
           error
-        );
-
-        console.error(
-          `[Klaro OCR TIMING] ${variant.name} / AUTO failed after ${
-            Date.now() - candidateStart
-          }ms`
         );
       }
     }
 
-    console.log(
-      `[Klaro OCR TIMING] OCR candidates completed: ${candidates.length}`
-    );
-
-    console.log(
-      `[Klaro OCR TIMING] all OCR candidates complete: ${
-        Date.now() - requestStart
-      }ms`
-    );
-
-    if (candidates.length === 0) {
+    if (
+      candidates.length === 0
+    ) {
       throw new Error(
         "OCR failed. No candidate completed successfully."
       );
     }
 
-    for (const candidate of candidates) {
-      console.log(
-        `[Klaro OCR] Candidate comparison:\n` +
-          `${candidate.name}: ` +
-          `quality=${candidate.quality.toFixed(2)}, ` +
-          `tokens=${candidate.tokenCount}, ` +
-          `meaningful=${candidate.meaningfulWordCount}, ` +
-          `confidence=${candidate.tesseractConfidence}, ` +
-          `coverage=${candidate.bboxCoverage.toFixed(4)}, ` +
-          `horizontal=${candidate.horizontalCoverage.toFixed(4)}, ` +
-          `vertical=${candidate.verticalCoverage.toFixed(4)}, ` +
-          `lines=${candidate.lineCount}, ` +
-          `garbage=${candidate.garbageRatio.toFixed(4)}, ` +
-          `suspicious=${candidate.suspicious}`
-      );
-    }
+    // ----------------------------------------------
+    // SELECT BEST CANDIDATE
+    // ----------------------------------------------
 
     const selected =
-      selectBestCandidate(candidates);
-
-    console.log(
-      `[Klaro OCR TIMING] best candidate selected: ${
-        Date.now() - requestStart
-      }ms`
-    );
+      selectBestCandidate(
+        candidates
+      );
 
     console.log(
       `[Klaro OCR] Selected: ${selected.name}`
     );
 
+    // ----------------------------------------------
+    // FINAL ORIGINAL WORDS
+    // ----------------------------------------------
+
     const finalWords =
-      selected.words.map((word) => ({
-        ...word,
-        originalConfidence:
-          word.originalConfidence ??
-          word.confidence,
-        correctedText:
-          word.correctedText ??
-          word.text,
-      }));
+      selected.words.map(
+        (word) => ({
+          ...word,
+
+          originalConfidence:
+            word.originalConfidence ??
+            word.confidence,
+
+          // No correction yet.
+          suggestion: null,
+
+          corrected: false,
+        })
+      );
+
+    // ----------------------------------------------
+    // FLAG LOW CONFIDENCE WORDS
+    // ----------------------------------------------
 
     const flaggedWords =
       finalWords.filter(
@@ -1156,17 +1416,59 @@ export async function POST(
           CONFIDENCE_THRESHOLD
       );
 
-    const correctedText =
-      finalWords.length > 0
-        ? buildTextFromWords(finalWords)
-        : selected.text;
+    // ----------------------------------------------
+    // LAYER 1
+    //
+    // Original OCR text.
+    // Completely untouched.
+    // ----------------------------------------------
+
+    const originalText =
+      selected.text;
+
+    // ----------------------------------------------
+    // LAYER 2
+    //
+    // For now this is the same OCR text.
+    //
+    // The frontend will use:
+    // - flaggedWords
+    // - suggestions
+    // - confidence
+    //
+    // Later we will add the
+    // suggestion engine here.
+    // ----------------------------------------------
+
+    const reviewText =
+      originalText;
+
+    // ----------------------------------------------
+    // RESPONSE
+    // ----------------------------------------------
 
     const responseData = {
       success: true,
 
-      text: correctedText,
+      // --------------------------------
+      // THREE-LAYER DATA
+      // --------------------------------
 
-      rawText: selected.text,
+      originalText,
+
+      reviewText,
+
+      // Temporary compatibility fields
+      // for your existing frontend.
+      text:
+        originalText,
+
+      rawText:
+        originalText,
+
+      // --------------------------------
+      // CONFIDENCE
+      // --------------------------------
 
       confidence:
         selected.quality,
@@ -1175,16 +1477,20 @@ export async function POST(
         selected.tesseractConfidence,
 
       confidenceSource:
-        "Tesseract word confidence + candidate quality",
+        "OCR quality is calculated from Tesseract confidence, average word confidence, meaningful word ratio, garbage detection, and candidate quality.",
+
+      recognitionQuality:
+        selected.quality,
+
+      // --------------------------------
+      // CANDIDATE
+      // --------------------------------
 
       selectedCandidate:
         selected.name,
 
       score:
         selected.score,
-
-      recognitionQuality:
-        selected.quality,
 
       autoQuality:
         candidates.find(
@@ -1193,8 +1499,6 @@ export async function POST(
             "ORIGINAL / AUTO"
         )?.quality ?? 0,
 
-      singleBlockQuality: 0,
-
       grayscaleQuality:
         candidates.find(
           (candidate) =>
@@ -1202,7 +1506,12 @@ export async function POST(
             "GRAYSCALE / AUTO"
         )?.quality ?? 0,
 
-      words: finalWords,
+      // --------------------------------
+      // WORDS
+      // --------------------------------
+
+      words:
+        finalWords,
 
       flaggedWords,
 
@@ -1211,6 +1520,10 @@ export async function POST(
 
       threshold:
         CONFIDENCE_THRESHOLD,
+
+      // --------------------------------
+      // METRICS
+      // --------------------------------
 
       tokenCount:
         selected.tokenCount,
@@ -1236,8 +1549,13 @@ export async function POST(
       suspicious:
         selected.suspicious,
 
+      // --------------------------------
+      // TIME
+      // --------------------------------
+
       processingTimeMs:
-        Date.now() - requestStart,
+        Date.now() -
+        requestStart,
 
       processing: {
         variantsTested:
@@ -1258,20 +1576,17 @@ export async function POST(
     };
 
     console.log(
-      `[Klaro OCR TIMING] final response prepared: ${
-        Date.now() - requestStart
+      `[Klaro OCR] OCR complete in ${
+        Date.now() -
+        requestStart
       }ms`
-    );
-
-    console.log(
-      `[Klaro OCR TIMING] ===== OCR REQUEST COMPLETE: ${
-        Date.now() - requestStart
-      }ms =====`
     );
 
     return NextResponse.json(
       responseData,
-      { status: 200 }
+      {
+        status: 200,
+      }
     );
   } catch (error) {
     console.error(
@@ -1279,39 +1594,35 @@ export async function POST(
       error
     );
 
-    console.error(
-      `[Klaro OCR TIMING] ===== OCR REQUEST FAILED: ${
-        Date.now() - requestStart
-      }ms =====`
-    );
-
     return NextResponse.json(
       {
         success: false,
+
         message:
           "OCR processing failed.",
+
         error:
           error instanceof Error
             ? error.message
             : "Unknown OCR error.",
+
         processingTimeMs:
-          Date.now() - requestStart,
+          Date.now() -
+          requestStart,
       },
-      { status: 500 }
+
+      {
+        status: 500,
+      }
     );
   } finally {
-    if (worker) {
-      const terminateStart =
-        Date.now();
+    // ----------------------------------------------
+    // TERMINATE WORKER
+    // ----------------------------------------------
 
+    if (worker) {
       try {
         await worker.terminate();
-
-        console.log(
-          `[Klaro OCR TIMING] Worker terminated in ${
-            Date.now() - terminateStart
-          }ms`
-        );
       } catch (error) {
         console.error(
           "[Klaro OCR] Failed to terminate worker:",
@@ -1320,23 +1631,19 @@ export async function POST(
       }
     }
 
-    if (tempDir) {
-      const cleanupStart =
-        Date.now();
+    // ----------------------------------------------
+    // CLEAN TEMP DIRECTORY
+    // ----------------------------------------------
 
+    if (tempDir) {
       try {
         await fs.rm(
           tempDir,
           {
             recursive: true,
+
             force: true,
           }
-        );
-
-        console.log(
-          `[Klaro OCR TIMING] Temporary directory cleaned in ${
-            Date.now() - cleanupStart
-          }ms`
         );
       } catch (error) {
         console.error(
@@ -1347,7 +1654,7 @@ export async function POST(
     }
 
     console.log(
-      "[Klaro OCR TIMING] ===== OCR CLEANUP COMPLETE ====="
+      "[Klaro OCR] ===== OCR CLEANUP COMPLETE ====="
     );
   }
 }

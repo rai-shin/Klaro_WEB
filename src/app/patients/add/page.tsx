@@ -2,15 +2,32 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 
 export default function AddPatientPage() {
   const router = useRouter();
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  // ----------------------------------------
+  // MOBILE SIDEBAR
+  // ----------------------------------------
+
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
+  // ----------------------------------------
+  // FORM STATES
+  // ----------------------------------------
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
 
   const [form, setForm] = useState({
     studentId: "",
@@ -26,9 +43,15 @@ export default function AddPatientPage() {
     address: "",
   });
 
+  // ----------------------------------------
+  // HANDLE INPUT CHANGE
+  // ----------------------------------------
+
   function handleChange(
     e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      HTMLInputElement |
+        HTMLSelectElement |
+        HTMLTextAreaElement
     >
   ) {
     const { name, value } = e.target;
@@ -39,7 +62,13 @@ export default function AddPatientPage() {
     }));
   }
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  // ----------------------------------------
+  // SUBMIT
+  // ----------------------------------------
+
+  async function handleSubmit(
+    e: FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
 
     setLoading(true);
@@ -47,23 +76,33 @@ export default function AddPatientPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/patients", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
+      const response = await fetch(
+        "/api/patients",
+        {
+          method: "POST",
 
-      const data = await response.json();
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify(form),
+        }
+      );
+
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Failed to create patient."
+          data.message ||
+            "Failed to create patient."
         );
       }
 
-      setMessage("Patient successfully added.");
+      setMessage(
+        "Patient successfully added."
+      );
 
       setTimeout(() => {
         router.push("/patients");
@@ -79,41 +118,72 @@ export default function AddPatientPage() {
     }
   }
 
+  // ----------------------------------------
+  // PAGE
+  // ----------------------------------------
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar />
 
-      <main className="ml-64">
-        <Header />
+      {/* SIDEBAR */}
 
-        <div className="p-8">
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() =>
+          setSidebarOpen(false)
+        }
+      />
+
+      {/* MAIN */}
+
+      <main className="min-h-screen lg:ml-64">
+
+        {/* HEADER */}
+
+        <Header
+          onMenuClick={() =>
+            setSidebarOpen(true)
+          }
+        />
+
+        {/* CONTENT */}
+
+        <div className="px-4 py-5 sm:px-6 sm:py-6 lg:p-8">
+
           <div className="mx-auto max-w-5xl">
-            {/* Page Title */}
+
+            {/* PAGE TITLE */}
 
             <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-800">
+
+              <h1 className="text-xl font-bold text-gray-800 sm:text-2xl">
                 Add Patient
               </h1>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Create a new school clinic patient record.
+              <p className="mt-1 text-sm leading-6 text-gray-500">
+                Create a new school clinic
+                patient record.
               </p>
+
             </div>
 
-            {/* Form */}
+            {/* FORM */}
 
             <form
               onSubmit={handleSubmit}
-              className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
+              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 lg:p-8"
             >
-              {/* Student Information */}
+
+              {/* STUDENT INFORMATION */}
 
               <div className="mb-8">
-                <h2 className="mb-5 text-lg font-semibold text-gray-800">
+
+                <h2 className="mb-5 text-base font-semibold text-gray-800 sm:text-lg">
                   Student Information
                 </h2>
 
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+
                   <Input
                     label="Student ID"
                     name="studentId"
@@ -168,7 +238,10 @@ export default function AddPatientPage() {
                     placeholder="Enter age"
                   />
 
+                  {/* SEX */}
+
                   <div>
+
                     <label className="mb-2 block text-sm font-medium text-gray-700">
                       Sex
                     </label>
@@ -177,12 +250,22 @@ export default function AddPatientPage() {
                       name="sex"
                       value={form.sex}
                       onChange={handleChange}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     >
-                      <option value="">Select sex</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
+                      <option value="">
+                        Select sex
+                      </option>
+
+                      <option value="Male">
+                        Male
+                      </option>
+
+                      <option value="Female">
+                        Female
+                      </option>
+
                     </select>
+
                   </div>
 
                   <Input
@@ -198,7 +281,7 @@ export default function AddPatientPage() {
                     name="section"
                     value={form.section}
                     onChange={handleChange}
-                    placeholder="e.g. Bloc 1"
+                    placeholder="e.g. Block 1"
                   />
 
                   <Input
@@ -208,13 +291,16 @@ export default function AddPatientPage() {
                     onChange={handleChange}
                     placeholder="09XXXXXXXXX"
                   />
+
                 </div>
+
               </div>
 
-              {/* Address */}
+              {/* CONTACT INFORMATION */}
 
               <div className="mb-8">
-                <h2 className="mb-5 text-lg font-semibold text-gray-800">
+
+                <h2 className="mb-5 text-base font-semibold text-gray-800 sm:text-lg">
                   Contact Information
                 </h2>
 
@@ -228,33 +314,41 @@ export default function AddPatientPage() {
                   onChange={handleChange}
                   rows={4}
                   placeholder="Enter student's address"
-                  className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="w-full resize-y rounded-lg border border-gray-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
+
               </div>
 
-              {/* Success */}
+              {/* SUCCESS */}
 
               {message && (
+
                 <div className="mb-5 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
                   {message}
                 </div>
+
               )}
 
-              {/* Error */}
+              {/* ERROR */}
 
               {error && (
+
                 <div className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
                   {error}
                 </div>
+
               )}
 
-              {/* Buttons */}
+              {/* BUTTONS */}
 
-              <div className="flex justify-end gap-3 border-t border-gray-100 pt-6">
+              <div className="flex flex-col gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
+
                 <button
                   type="button"
-                  onClick={() => router.push("/patients")}
-                  className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  onClick={() =>
+                    router.push("/patients")
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
                 >
                   Cancel
                 </button>
@@ -262,18 +356,31 @@ export default function AddPatientPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
-                  {loading ? "Saving..." : "Save Patient"}
+                  {loading
+                    ? "Saving..."
+                    : "Save Patient"}
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
+
       </main>
+
     </div>
   );
 }
+
+
+// ----------------------------------------
+// INPUT COMPONENT
+// ----------------------------------------
 
 function Input({
   label,
@@ -289,9 +396,11 @@ function Input({
   label: string;
   name: string;
   value: string;
+
   onChange: (
     e: React.ChangeEvent<HTMLInputElement>
   ) => void;
+
   type?: string;
   required?: boolean;
   placeholder?: string;
@@ -300,11 +409,17 @@ function Input({
 }) {
   return (
     <div>
+
       <label className="mb-2 block text-sm font-medium text-gray-700">
+
         {label}
+
         {required && (
-          <span className="text-red-500"> *</span>
+          <span className="text-red-500">
+            {" *"}
+          </span>
         )}
+
       </label>
 
       <input
@@ -316,8 +431,9 @@ function Input({
         placeholder={placeholder}
         min={min}
         max={max}
-        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
+
     </div>
   );
 }
