@@ -2,9 +2,14 @@
 name = "klaro-paddleocr"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
+
 dependencies = [
     "fastapi==0.141.1",
     "paddleocr==3.7.0",
     "paddlepaddle==3.2.0",
     "python-multipart==0.0.32",
+    "opencv-contrib-python==4.10.0.84",
 ]
+
+[tool.uv.sources]
+opencv-contrib-python = { path = "./opencv-contrib-python-shim" }
