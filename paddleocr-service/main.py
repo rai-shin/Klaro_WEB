@@ -21,6 +21,7 @@ print("PaddleOCR model loaded successfully.")
 
 
 @app.get("/")
+@app.get("/api")
 def root():
     return {
         "message": "Klaro PaddleOCR API is running"
