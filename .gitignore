@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python / PaddleOCR
+/paddleocr-service/.venv/
+/paddleocr-service/__pycache__/
+*.pyc
+/structure.txt
+/public/uploads/klaro-ocr-1788436946544-6iq0blj0-260df6b5-eafc-4d02-9ddd-f903cfa208f4.jpg
+
+# PaddleOCR test files
+/paddleocr-service/*.webp
+/paddleocr-service/test-image*.jpg
+/paddleocr-service/ocr_result.json

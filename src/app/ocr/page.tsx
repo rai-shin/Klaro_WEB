@@ -150,6 +150,9 @@ export default function OCRPage() {
       null
     );
 
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewFinished, setReviewFinished] = useState(false);
+
   // --------------------------------------------------
   // CORRECTIONS
   // --------------------------------------------------
@@ -324,6 +327,8 @@ export default function OCRPage() {
     setText("");
     setReviewedText("");
     setCorrectedText("");
+    setReviewOpen(false);
+    setReviewFinished(false);
 
     setConfidence(null);
     setWords([]);
@@ -444,39 +449,87 @@ export default function OCRPage() {
   // IMAGE OCR
   // --------------------------------------------------
 
-  async function processImage() {
-    if (!file) {
-      throw new Error(
-        "No image selected."
-      );
-    }
-
-    const result =
-      await recognizeImage(
-        file,
-        setProgress
-      );
-
-    setText(result.text);
-
-    setReviewedText(
-      result.text
-    );
-
-    setCorrectedText(
-      result.text
-    );
-
-    setConfidence(
-      result.confidence
-    );
-
-    setWords(
-      result.words
-    );
-
-    setProgress(100);
+  
+async function processImage() {
+  if (!file) {
+    throw new Error("No image selected.");
   }
+
+  setProgress(10);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/ocr/paddle", {
+    method: "POST",
+    body: formData,
+  });
+
+  setProgress(80);
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(
+      data.message || "PaddleOCR processing failed."
+    );
+  }
+
+  if (!Array.isArray(data.results)) {
+    throw new Error(
+      "PaddleOCR returned an invalid response."
+    );
+  }
+
+  const paddleResults = data.results as Array<{
+    text: string;
+    confidence: number;
+    status: string;
+    flagged: boolean;
+  }>;
+
+  const extractedText = paddleResults
+    .map((item) => item.text.trim())
+    .filter((text) => text.length > 0)
+    .join("\n");
+
+  const extractedWords: OCRWord[] = paddleResults
+    .filter((item) => item.text.trim().length > 0)
+    .flatMap((item) => {
+      const lineConfidence = Number(item.confidence);
+
+      return item.text
+        .trim()
+        .split(/\s+/)
+        .filter((word) => word.length > 0)
+        .map((word) => ({
+          text: word,
+          confidence: lineConfidence,
+        }));
+    });
+
+  const averageConfidence =
+    extractedWords.length > 0
+      ? extractedWords.reduce(
+          (total, word) => total + word.confidence,
+          0
+        ) / extractedWords.length
+      : 0;
+
+  setText(extractedText);
+
+  setReviewedText(extractedText);
+
+  setCorrectedText(extractedText);
+
+  setConfidence(
+    Number(averageConfidence.toFixed(2))
+  );
+
+  setWords(extractedWords);
+
+  setProgress(100);
+}
 
   // --------------------------------------------------
   // DOCX PROCESSING
@@ -1674,27 +1727,53 @@ export default function OCRPage() {
             {status === "complete" && (
               <>
 
+                <section className="mb-6 rounded-xl border border-blue-200 bg-white p-4 shadow-sm sm:p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-blue-600">OCR Review</p>
+                      <h2 className="mt-1 text-lg font-bold text-gray-800">Review your extracted document</h2>
+                      <p className="mt-0.5 text-xs leading-5 text-gray-500">Open the original copy and flagged digital copy before finalizing the result.</p>
+                    </div>
+                    <button type="button" onClick={() => setReviewOpen(true)} className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
+                      Review OCR
+                    </button>
+                  </div>
+                </section>
+
+                {reviewOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-2 sm:p-4">
+                    <div className="relative flex h-[min(92vh,760px)] max-h-[92vh] w-full max-w-6xl flex-col overflow-visible rounded-2xl bg-white shadow-2xl">
+                      <div className="sticky top-0 z-50 flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-blue-600">OCR Review Window</p>
+                          <h2 className="text-lg font-bold text-gray-800">Original Copy & Digital Review</h2>
+                        </div>
+                        <button type="button" onClick={() => setReviewOpen(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-100">Close</button>
+                      </div>
+                      <div className="relative z-0 min-h-0 flex-1 overflow-y-auto overflow-x-visible p-2 sm:p-3">
+                        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+
                 {/* LAYER 1 */}
 
-                <section className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <section className="mb-2 min-w-0 overflow-visible rounded-lg border border-gray-200 bg-white">
 
-                  <div className="border-b border-gray-200 bg-gray-50 p-4 sm:p-6">
+                  <div className="border-b border-gray-200 bg-gray-50 px-3 py-2">
 
                     <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
                       Layer 1
                     </p>
 
-                    <h2 className="mt-1 text-lg font-bold text-gray-800 sm:text-xl">
+                    <h2 className="mt-0.5 text-base font-bold text-gray-800 sm:text-lg">
                       Original Copy
                     </h2>
 
-                    <p className="mt-1 text-sm leading-6 text-gray-500">
-                      The original uploaded document is preserved unchanged.
+                    <p className="mt-0.5 text-xs leading-5 text-gray-500">
+                      Original uploaded document, unchanged.
                     </p>
 
                   </div>
 
-                  <div className="p-4 sm:p-6">
+                  <div className="p-3">
 
                     {preview ? (
                       <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
@@ -1705,7 +1784,7 @@ export default function OCRPage() {
                           width={1000}
                           height={1200}
                           unoptimized
-                          className="mx-auto h-auto max-h-[700px] w-full object-contain"
+                          className="mx-auto h-auto max-h-[300px] w-full object-contain"
                         />
 
                       </div>
@@ -1730,400 +1809,268 @@ export default function OCRPage() {
                 </section>
 
                 {/* LAYER 2 */}
-
-                <section className="mb-6 overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm">
-
-                  <div className="border-b border-blue-100 bg-blue-50 p-4 sm:p-6">
-
-                    <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
-                      Layer 2
-                    </p>
-
-                    <h2 className="mt-1 text-lg font-bold text-gray-800 sm:text-xl">
-                      Digital Copy with Review Flags
-                    </h2>
-
-                    <p className="mt-1 text-sm leading-6 text-gray-600">
-                      Only words requiring attention are displayed in the review section.
-                    </p>
-
+                <section className="mb-3 min-w-0 overflow-visible rounded-xl border border-blue-200 bg-white">
+                  <div className="border-b border-blue-100 bg-blue-50 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
+                          Layer 2
+                        </p>
+                        <h2 className="mt-0.5 text-base font-bold text-gray-800 sm:text-lg">
+                          Interactive Digital Review
+                        </h2>
+                        <p className="mt-1 text-sm leading-6 text-gray-600">
+                          Hover or tap yellow/red words to review them.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs font-medium">
+                        <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-yellow-800">
+                          Moderate
+                        </span>
+                        <span className="rounded-full bg-red-100 px-2.5 py-1 text-red-800">
+                          Needs Review
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="p-4 sm:p-6">
+                  <div className="space-y-3 p-3">
+                    <div>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
+                          Digital Copy
+                        </h3>
+                        <span className="text-xs text-gray-400">
+                          {words.length} words
+                        </span>
+                      </div>
 
-                    {/* DIGITAL COPY */}
+                      <div className="relative z-0 overflow-visible rounded-lg bg-gray-50 p-2 text-sm leading-7 text-gray-700 sm:p-3 sm:text-base">
+                        {words.length > 0 ? (
+                          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                            {words.map((word, index) => {
+                              const normalized = normalizeWord(word.text);
+                              const suggestion =
+                                correctionSuggestions[normalized];
+                              const decision =
+                                correctionDecisions[normalized];
+                              const isAccepted = decision === true;
+                              const isIgnored = decision === false;
+                              const isModerate =
+                                word.confidence >= MODERATE_CONFIDENCE &&
+                                word.confidence < HIGH_CONFIDENCE;
+                              const isLow =
+                                word.confidence < MODERATE_CONFIDENCE;
+                              const needsReview = isModerate || isLow;
 
-                    <div className="mb-6">
+                              return (
+                                <span
+                                  key={`${normalized}-${index}`}
+                                  className="group relative inline-flex items-center"
+                                >
+                                  <button
+                                    type="button"
+                                    className={`rounded px-1 py-0.5 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                                      !needsReview
+                                        ? "text-gray-700"
+                                        : isLow
+                                          ? "bg-red-200 text-red-900 underline decoration-red-500 decoration-2 underline-offset-4 hover:bg-red-300"
+                                          : "bg-yellow-200 text-yellow-900 underline decoration-yellow-500 decoration-2 underline-offset-4 hover:bg-yellow-300"
+                                    }`}
+                                    title={`${word.confidence.toFixed(1)}% confidence`}
+                                  >
+                                    {word.text}
+                                  </button>
 
-                      <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
-                        Digital Copy
-                      </h3>
+                                  {needsReview && (
+                                    <div className="invisible fixed bottom-24 left-1/2 z-[10000] mb-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 text-left text-xs shadow-2xl pointer-events-auto group-hover:visible group-focus-within:visible">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <p className="font-semibold text-gray-800">
+                                            {word.text}
+                                          </p>
+                                          <p className="mt-1 text-gray-500">
+                                            Confidence: {word.confidence.toFixed(1)}%
+                                          </p>
+                                        </div>
+                                        <span
+                                          className={`rounded-full px-2 py-1 font-semibold ${
+                                            isLow
+                                              ? "bg-red-100 text-red-700"
+                                              : "bg-yellow-100 text-yellow-700"
+                                          }`}
+                                        >
+                                          {isLow ? "Low" : "Moderate"}
+                                        </span>
+                                      </div>
 
-                      <textarea
-                        value={reviewedText}
-                        onChange={(event) =>
-                          updateReviewedText(
-                            event.target.value
-                          )
-                        }
-                        rows={15}
-                        className="mt-3 w-full resize-y rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                      />
+                                      {suggestion ? (
+                                        <>
+                                          <div className="mt-3 rounded-lg bg-blue-50 p-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
+                                              Suggested Correction
+                                            </p>
+                                            <p className="mt-1 font-semibold text-blue-800">
+                                              {suggestion}
+                                            </p>
+                                          </div>
 
+                                          {!isAccepted && !isIgnored ? (
+                                            <div className="mt-3 flex gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleAcceptCorrection(
+                                                    normalized,
+                                                    word.text,
+                                                    suggestion
+                                                  )
+                                                }
+                                                className="rounded-md bg-blue-600 px-2.5 py-1.5 font-medium text-white hover:bg-blue-700"
+                                              >
+                                                Accept
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleIgnoreCorrection(normalized)
+                                                }
+                                                className="rounded-md border border-gray-300 px-2.5 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                                              >
+                                                Ignore
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <p className="mt-2 font-medium text-gray-600">
+                                              {isAccepted
+                                                ? "✓ Correction accepted"
+                                                : "Correction ignored"}
+                                            </p>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="mt-3 text-gray-500">
+                                            No automatic correction suggestion was found.
+                                          </p>
+                                          {!isIgnored && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleIgnoreCorrection(normalized)
+                                              }
+                                              className="mt-3 rounded-md border border-gray-300 px-2.5 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                                            >
+                                              Mark as Reviewed
+                                            </button>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap text-gray-700">
+                            {reviewedText || "No extracted text available."}
+                          </p>
+                        )}
+                      </div>
+
+                      <p className="mt-2 text-xs leading-5 text-gray-400">
+                        Yellow = moderate confidence · Red = low confidence.
+                      </p>
                     </div>
 
-                    {/* OVERALL CONFIDENCE */}
-
+                    {/* CONFIDENCE SUMMARY */}
                     {confidence !== null && (
-                      <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
-
-                        <p className="text-sm text-gray-500">
-                          OCR Overall Confidence
-                        </p>
-
-                        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-
-                          <p className="text-3xl font-bold text-gray-800">
-                            {confidence.toFixed(1)}%
-                          </p>
-
-                          <span
-                            className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${getConfidenceClass(
-                              confidence
-                            )}`}
-                          >
-                            {getConfidenceLabel(
-                              confidence
-                            )}
-                          </span>
-
-                        </div>
-
-                      </div>
-                    )}
-
-                    {/* REVIEW SUMMARY */}
-
-                    {words.length > 0 && (
-                      <div className="mb-6">
-
-                        <h3 className="mb-3 text-base font-semibold text-gray-800 sm:text-lg">
-                          Confidence Review Summary
-                        </h3>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-
-                          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-
-                            <p className="text-xs font-medium uppercase tracking-wide text-green-600">
-                              Automatically Trusted
+                      <div className="rounded-lg bg-gray-50 p-3">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">
+                              OCR Overall Confidence
                             </p>
-
-                            <p className="mt-1 text-2xl font-bold text-green-700">
-                              {highConfidenceCount}
-                            </p>
-
-                            <p className="mt-2 text-xs leading-5 text-green-600">
-                              High-confidence words are not shown for review.
-                            </p>
-
+                            <div className="mt-2 flex flex-wrap items-center gap-3">
+                              <p className="text-3xl font-bold text-gray-800">
+                                {confidence.toFixed(1)}%
+                              </p>
+                              <span
+                                className={`rounded-full px-3 py-1.5 text-sm font-semibold ${getConfidenceClass(
+                                  confidence
+                                )}`}
+                              >
+                                {getConfidenceLabel(confidence)}
+                              </span>
+                            </div>
                           </div>
-
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-
-                            <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
-                              Possible Corrections
-                            </p>
-
-                            <p className="mt-1 text-2xl font-bold text-blue-700">
-                              {groupedCorrectionWords.length}
-                            </p>
-
-                            <p className="mt-2 text-xs leading-5 text-blue-600">
-                              Moderate or low-confidence words with suggestions.
-                            </p>
-
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="rounded-md bg-green-50 px-2 py-1">
+                              <p className="text-lg font-bold text-green-700">
+                                {highConfidenceCount}
+                              </p>
+                              <p className="text-[10px] font-medium uppercase text-green-600">
+                                High
+                              </p>
+                            </div>
+                            <div className="rounded-md bg-yellow-50 px-2 py-1">
+                              <p className="text-lg font-bold text-yellow-700">
+                                {moderateConfidenceCount}
+                              </p>
+                              <p className="text-[10px] font-medium uppercase text-yellow-600">
+                                Moderate
+                              </p>
+                            </div>
+                            <div className="rounded-md bg-red-50 px-2 py-1">
+                              <p className="text-lg font-bold text-red-700">
+                                {lowConfidenceCount}
+                              </p>
+                              <p className="text-[10px] font-medium uppercase text-red-600">
+                                Low
+                              </p>
+                            </div>
                           </div>
-
-                          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-
-                            <p className="text-xs font-medium uppercase tracking-wide text-red-600">
-                              Needs Manual Review
-                            </p>
-
-                            <p className="mt-1 text-2xl font-bold text-red-700">
-                              {groupedFlaggedWords.length}
-                            </p>
-
-                            <p className="mt-2 text-xs leading-5 text-red-600">
-                              Low-confidence words without suggestions.
-                            </p>
-
-                          </div>
-
                         </div>
-
-                        <p className="mt-3 text-xs leading-5 text-gray-400">
-                          OCR words: {words.length}
-                          {" · "}
-                          Moderate confidence: {moderateConfidenceCount}
-                          {" · "}
-                          Low confidence: {lowConfidenceCount}
-                        </p>
-
                       </div>
                     )}
 
-                    {/* POSSIBLE CORRECTIONS */}
-
-                    {groupedCorrectionWords.length > 0 && (
-                      <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-
-                        <h3 className="text-sm font-semibold text-blue-800">
-                          Possible Corrections
-                        </h3>
-
-                        <p className="mt-1 text-xs leading-5 text-blue-600">
-                          These words have lower confidence and a possible correction generated by the correction mechanism.
+                    {words.length === 0 && documentType === "docx" && (
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
+                        <p className="text-sm font-medium text-gray-700">
+                          Text Extraction Complete
                         </p>
-
-                        <div className="mt-4 max-h-96 space-y-3 overflow-y-auto">
-
-                          {groupedCorrectionWords.map(
-                            (item) => {
-
-                              const accepted =
-                                correctionDecisions[
-                                  item.normalized
-                                ] === true;
-
-                              const ignored =
-                                correctionDecisions[
-                                  item.normalized
-                                ] === false;
-
-                              return (
-                                <div
-                                  key={item.normalized}
-                                  className="rounded-lg border border-blue-200 bg-white p-4"
-                                >
-
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
-                                    <div className="min-w-0">
-
-                                      <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                                        OCR Word
-                                      </p>
-
-                                      <p className="mt-1 break-words text-lg font-semibold text-gray-800">
-                                        {item.displayWord}
-                                      </p>
-
-                                      <p className="mt-1 text-xs text-gray-400">
-                                        {item.occurrences} occurrence
-                                        {item.occurrences !== 1
-                                          ? "s"
-                                          : ""}
-                                      </p>
-
-                                    </div>
-
-                                    <span className="w-fit shrink-0 rounded-full bg-yellow-50 px-3 py-1 text-sm font-semibold text-yellow-700">
-                                      {item.confidence.toFixed(1)}%
-                                    </span>
-
-                                  </div>
-
-                                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
-
-                                    <p className="text-xs font-medium uppercase text-blue-600">
-                                      Suggested Correction
-                                    </p>
-
-                                    <p className="mt-1 break-words text-base font-semibold text-blue-800">
-                                      {item.suggestion}
-                                    </p>
-
-                                  </div>
-
-                                  {!accepted &&
-                                    !ignored && (
-                                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleAcceptCorrection(
-                                              item.normalized,
-                                              item.displayWord,
-                                              item.suggestion
-                                            )
-                                          }
-                                          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto"
-                                        >
-                                          Accept Correction
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleIgnoreCorrection(
-                                              item.normalized
-                                            )
-                                          }
-                                          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
-                                        >
-                                          Ignore
-                                        </button>
-
-                                      </div>
-                                    )}
-
-                                  {accepted && (
-                                    <div className="mt-4 rounded-lg bg-green-50 p-3">
-
-                                      <p className="text-sm font-medium text-green-700">
-                                        ✓ Correction accepted
-                                      </p>
-
-                                    </div>
-                                  )}
-
-                                  {ignored && (
-                                    <div className="mt-4 rounded-lg bg-gray-100 p-3">
-
-                                      <p className="text-sm font-medium text-gray-600">
-                                        Correction ignored.
-                                      </p>
-
-                                    </div>
-                                  )}
-
-                                </div>
-                              );
-                            }
-                          )}
-
-                        </div>
-
+                        <p className="mt-2 text-sm leading-6 text-gray-500">
+                          DOCX processing extracts digital text directly and does not generate OCR confidence data.
+                        </p>
                       </div>
                     )}
-
-                    {/* LOW CONFIDENCE WORDS */}
-
-                    {groupedFlaggedWords.length > 0 && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-
-                        <h3 className="text-sm font-semibold text-red-800">
-                          Needs Manual Review
-                        </h3>
-
-                        <p className="mt-1 text-xs leading-5 text-red-600">
-                          These words have low OCR confidence and no reliable automatic correction was found.
-                        </p>
-
-                        <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
-
-                          {groupedFlaggedWords.map(
-                            (item) => {
-
-                              const ignored =
-                                correctionDecisions[
-                                  item.normalized
-                                ] === false;
-
-                              return (
-                                <div
-                                  key={item.normalized}
-                                  className="rounded-lg border border-red-200 bg-white p-4"
-                                >
-
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
-                                    <div className="min-w-0">
-
-                                      <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                                        OCR Word
-                                      </p>
-
-                                      <p className="mt-1 break-words text-lg font-semibold text-gray-800">
-                                        {item.displayWord}
-                                      </p>
-
-                                      <p className="mt-1 text-xs text-gray-400">
-                                        {item.occurrences} occurrence
-                                        {item.occurrences !== 1
-                                          ? "s"
-                                          : ""}
-                                      </p>
-
-                                    </div>
-
-                                    <span className="w-fit shrink-0 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700">
-                                      {item.confidence.toFixed(1)}%
-                                    </span>
-
-                                  </div>
-
-                                  {!ignored && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleIgnoreCorrection(
-                                          item.normalized
-                                        )
-                                      }
-                                      className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
-                                    >
-                                      Mark as Reviewed
-                                    </button>
-                                  )}
-
-                                  {ignored && (
-                                    <div className="mt-3 rounded-lg bg-gray-100 p-3">
-
-                                      <p className="text-xs font-medium text-gray-600">
-                                        ✓ Review completed
-                                      </p>
-
-                                    </div>
-                                  )}
-
-                                </div>
-                              );
-                            }
-                          )}
-
-                        </div>
-
-                      </div>
-                    )}
-
-                    {/* DOCX */}
-
-                    {words.length === 0 &&
-                      documentType === "docx" && (
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
-
-                          <p className="text-sm font-medium text-gray-700">
-                            Text Extraction Complete
-                          </p>
-
-                          <p className="mt-2 text-sm leading-6 text-gray-500">
-                            DOCX processing extracts digital text directly and does not generate Tesseract OCR confidence data.
-                          </p>
-
-                        </div>
-                      )}
-
                   </div>
-
                 </section>
+
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-stretch justify-between gap-3 border-t border-gray-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:px-5">
+                        <p className="text-xs text-gray-500">Review the highlighted words, then continue to Layer 3.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReviewFinished(true);
+                            setReviewOpen(false);
+                          }}
+                          className="shrink-0 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                        >
+                          Finish Review →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* LAYER 3 */}
 
-                <section className="mb-6 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
+                {reviewFinished && <section className="mb-6 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
 
                   <div className="border-b border-green-100 bg-green-50 p-4 sm:p-6">
 
@@ -2131,7 +2078,7 @@ export default function OCRPage() {
                       Layer 3
                     </p>
 
-                    <h2 className="mt-1 text-lg font-bold text-gray-800 sm:text-xl">
+                    <h2 className="mt-0.5 text-base font-bold text-gray-800 sm:text-lg">
                       Structured Final Copy
                     </h2>
 
@@ -2160,7 +2107,7 @@ export default function OCRPage() {
 
                   </div>
 
-                </section>
+                </section>}
 
                 {/* SAVE */}
 
@@ -2174,7 +2121,7 @@ export default function OCRPage() {
                         Save Document
                       </h2>
 
-                      <p className="mt-1 text-sm leading-6 text-gray-500">
+                      <p className="mt-0.5 text-xs leading-5 text-gray-500">
                         Save the original document, OCR result, final corrected copy, and confidence-based review data to the database.
                       </p>
 
