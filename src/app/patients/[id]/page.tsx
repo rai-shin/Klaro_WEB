@@ -612,9 +612,7 @@ export default function PatientDetailPage() {
 
                               {document.filePath && (
                                 <a
-                                  href={
-                                    document.filePath
-                                  }
+                                  href={`/api/documents/${document.id}/file`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
@@ -769,9 +767,7 @@ export default function PatientDetailPage() {
 
                   {selectedDocument.filePath && (
                     <a
-                      href={
-                        selectedDocument.filePath
-                      }
+                      href={`/api/documents/${selectedDocument.id}/file`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full rounded-lg bg-gray-800 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-gray-900 sm:w-auto"
