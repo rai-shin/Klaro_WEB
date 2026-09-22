@@ -28,6 +28,7 @@ def root():
 
 
 @app.post("/ocr")
+@app.post("/api/ocr")
 async def process_ocr(file: UploadFile = File(...)):
     allowed_types = {
         "image/jpeg",
