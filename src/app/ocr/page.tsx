@@ -4,6 +4,7 @@ import {
   ChangeEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -87,6 +88,25 @@ export default function OCRPage() {
   const [preview, setPreview] =
     useState<string | null>(null);
 
+  // --------------------------------------------------
+  // CAMERA
+  // --------------------------------------------------
+
+  const [cameraOpen, setCameraOpen] =
+    useState(false);
+
+  const [cameraStarting, setCameraStarting] =
+    useState(false);
+
+  const [cameraError, setCameraError] =
+    useState("");
+
+  const videoRef =
+    useRef<HTMLVideoElement | null>(null);
+
+  const cameraStreamRef =
+    useRef<MediaStream | null>(null);
+
   const [documentType, setDocumentType] =
     useState<DocumentType | null>(null);
 
@@ -115,6 +135,9 @@ export default function OCRPage() {
 
   const [progress, setProgress] =
     useState(0);
+
+  const [scanStage, setScanStage] =
+    useState("Preparing document...");
 
   const [status, setStatus] =
     useState<OCRStatus>("idle");
@@ -180,6 +203,43 @@ export default function OCRPage() {
       }
     };
   }, [preview]);
+
+  useEffect(() => {
+    if (
+      !cameraOpen ||
+      cameraStarting ||
+      !cameraStreamRef.current ||
+      !videoRef.current
+    ) {
+      return;
+    }
+
+    const video = videoRef.current;
+
+    if (
+      video.srcObject !==
+      cameraStreamRef.current
+    ) {
+      video.srcObject =
+        cameraStreamRef.current;
+
+      video
+        .play()
+        .catch(() => undefined);
+    }
+  }, [cameraOpen, cameraStarting]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+
+        cameraStreamRef.current = null;
+      }
+    };
+  }, []);
 
   // --------------------------------------------------
   // LOAD PATIENTS
@@ -300,16 +360,9 @@ export default function OCRPage() {
   // FILE SELECTION
   // --------------------------------------------------
 
-  function handleFileChange(
-    event: ChangeEvent<HTMLInputElement>
+  function applySelectedFile(
+    selectedFile: File
   ) {
-    const selectedFile =
-      event.target.files?.[0];
-
-    if (!selectedFile) {
-      return;
-    }
-
     const detectedType =
       getDocumentType(selectedFile);
 
@@ -354,6 +407,179 @@ export default function OCRPage() {
 
       setPreview(newPreview);
     }
+  }
+
+  function handleFileChange(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const selectedFile =
+      event.target.files?.[0];
+
+    if (!selectedFile) {
+      return;
+    }
+
+    applySelectedFile(selectedFile);
+
+    event.target.value = "";
+  }
+
+  // --------------------------------------------------
+  // CAMERA
+  // --------------------------------------------------
+
+  function stopCamera() {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current
+        .getTracks()
+        .forEach((track) => track.stop());
+
+      cameraStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }
+
+  function closeCamera() {
+    stopCamera();
+    setCameraOpen(false);
+    setCameraStarting(false);
+    setCameraError("");
+  }
+
+  async function openCamera() {
+    setCameraError("");
+    setCameraOpen(true);
+    setCameraStarting(true);
+
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      setCameraStarting(false);
+      setCameraError(
+        "Camera access is not supported by this browser."
+      );
+
+      return;
+    }
+
+    try {
+      stopCamera();
+
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: {
+              ideal: "environment",
+            },
+            width: {
+              ideal: 1920,
+            },
+            height: {
+              ideal: 1080,
+            },
+          },
+          audio: false,
+        });
+
+      cameraStreamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject =
+          stream;
+
+        await videoRef.current
+          .play()
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      console.error(
+        "Camera access error:",
+        error
+      );
+
+      setCameraError(
+        "Unable to access the camera. Please allow camera permission and try again."
+      );
+
+      stopCamera();
+    } finally {
+      setCameraStarting(false);
+    }
+  }
+
+  function captureCameraImage() {
+    const video =
+      videoRef.current;
+
+    if (
+      !video ||
+      video.videoWidth === 0 ||
+      video.videoHeight === 0
+    ) {
+      setCameraError(
+        "The camera is not ready yet. Please wait a moment and try again."
+      );
+
+      return;
+    }
+
+    const canvas =
+      document.createElement("canvas");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context =
+      canvas.getContext("2d");
+
+    if (!context) {
+      setCameraError(
+        "Unable to capture the camera image."
+      );
+
+      return;
+    }
+
+    context.drawImage(
+      video,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError(
+            "Unable to create the captured image."
+          );
+
+          return;
+        }
+
+        const capturedFile =
+          new File(
+            [blob],
+            `camera-capture-${Date.now()}.jpg`,
+            {
+              type: "image/jpeg",
+            }
+          );
+
+        applySelectedFile(
+          capturedFile
+        );
+
+        closeCamera();
+      },
+      "image/jpeg",
+      0.92
+    );
   }
 
   // --------------------------------------------------
@@ -455,16 +681,21 @@ async function processImage() {
     throw new Error("No image selected.");
   }
 
+  setScanStage("Preparing image...");
   setProgress(10);
 
   const formData = new FormData();
   formData.append("file", file);
+
+  setScanStage("Scanning document...");
+  setProgress(30);
 
   const response = await fetch("/api/ocr/paddle", {
     method: "POST",
     body: formData,
   });
 
+  setScanStage("Reading detected text...");
   setProgress(80);
 
   const data = await response.json();
@@ -528,6 +759,16 @@ async function processImage() {
 
   setWords(extractedWords);
 
+  setScanStage("Analyzing confidence...");
+  setProgress(95);
+
+  // Keep the lightweight scan window visible briefly so the final
+  // processing stage is visible before the result view appears.
+  await new Promise((resolve) =>
+    window.setTimeout(resolve, 180)
+  );
+
+  setScanStage("Processing complete");
   setProgress(100);
 }
 
@@ -802,6 +1043,7 @@ async function processImage() {
       setSavedDocument(null);
 
       setProgress(0);
+      setScanStage("Preparing document...");
 
       setText("");
       setReviewedText("");
@@ -1606,34 +1848,67 @@ async function processImage() {
 
               </div>
 
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/30 sm:px-6 sm:py-12">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/30 sm:px-6 sm:py-10">
 
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl text-blue-600 sm:h-14 sm:w-14 sm:text-2xl">
-                  ↑
-                </div>
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl text-blue-600 sm:h-14 sm:w-14 sm:text-2xl">
+                    ↑
+                  </div>
 
-                <p className="text-sm font-medium text-gray-700">
-                  Click to upload a document
-                </p>
+                  <p className="text-sm font-medium text-gray-700">
+                    Upload a document
+                  </p>
 
-                <p className="mt-1 text-xs text-gray-400">
-                  Images, PDF, and DOCX
-                </p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Images, PDF, or DOCX
+                  </p>
 
-                <input
-                  type="file"
-                  accept={[
-                    "image/jpeg",
-                    "image/png",
-                    "image/webp",
-                    "application/pdf",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                  ].join(",")}
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                  <input
+                    type="file"
+                    accept={[
+                      "image/jpeg",
+                      "image/png",
+                      "image/webp",
+                      "application/pdf",
+                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    ].join(",")}
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
 
-              </label>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={openCamera}
+                  disabled={status === "processing"}
+                  className="flex flex-col items-center justify-center rounded-xl border-2 border-blue-200 bg-blue-50/50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:py-10"
+                >
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm sm:h-14 sm:w-14">
+                    <svg
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      className="h-6 w-6 sm:h-7 sm:w-7"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14 5l-1.5 2H9L7.5 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-5z" />
+                      <circle cx="12" cy="12" r="3.5" />
+                    </svg>
+                  </div>
+
+                  <p className="text-sm font-medium text-blue-800">
+                    Use Camera
+                  </p>
+
+                  <p className="mt-1 text-xs text-blue-600/70">
+                    Capture an image directly
+                  </p>
+                </button>
+              </div>
 
               {file && (
                 <div className="mt-4 rounded-lg bg-gray-50 p-4">
@@ -1693,34 +1968,35 @@ async function processImage() {
 
             {/* PROCESSING */}
 
-            {status === "processing" && (
-              <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+            {status === "processing" &&
+              documentType !== "image" && (
+                <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
 
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <span className="text-sm font-medium text-gray-700">
-                    Processing {getDocumentTypeLabel()}
-                  </span>
+                  <div className="mb-3 flex items-center justify-between gap-4">
+                    <span className="text-sm font-medium text-gray-700">
+                      Processing {getDocumentTypeLabel()}
+                    </span>
 
-                  <span className="shrink-0 text-sm font-semibold text-blue-600">
-                    {progress}%
-                  </span>
-                </div>
+                    <span className="shrink-0 text-sm font-semibold text-blue-600">
+                      {progress}%
+                    </span>
+                  </div>
 
-                <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-blue-600 transition-all duration-300"
-                    style={{
-                      width: `${progress}%`,
-                    }}
-                  />
-                </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                      style={{
+                        width: `${progress}%`,
+                      }}
+                    />
+                  </div>
 
-                <p className="mt-3 text-xs text-gray-400">
-                  Please wait while the document is being processed.
-                </p>
+                  <p className="mt-3 text-xs text-gray-400">
+                    Please wait while the document is being processed.
+                  </p>
 
-              </section>
-            )}
+                </section>
+              )}
 
             {/* RESULTS */}
 
@@ -1763,7 +2039,7 @@ async function processImage() {
                       Layer 1
                     </p>
 
-                    <h2 className="mt-0.5 text-base font-bold text-gray-800 sm:text-lg">
+                    <h2 className="mt-0.5 text-sm font-bold text-gray-800 sm:text-base">
                       Original Copy
                     </h2>
 
@@ -1816,7 +2092,7 @@ async function processImage() {
                         <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
                           Layer 2
                         </p>
-                        <h2 className="mt-0.5 text-base font-bold text-gray-800 sm:text-lg">
+                        <h2 className="mt-0.5 text-sm font-bold text-gray-800 sm:text-base">
                           Interactive Digital Review
                         </h2>
                         <p className="mt-1 text-sm leading-6 text-gray-600">
@@ -2154,6 +2430,208 @@ async function processImage() {
 
       </main>
 
+      {status === "processing" &&
+        documentType === "image" &&
+        preview && (
+          <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 p-2 backdrop-blur-[2px] sm:p-4">
+            <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-white px-3 py-2.5 sm:px-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                    Klaro OCR Scan
+                  </p>
+                  <h2 className="mt-0.5 text-base font-bold text-gray-800 sm:text-lg">
+                    Processing your document
+                  </h2>
+                </div>
+
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                  {progress}%
+                </span>
+              </div>
+
+              <div className="bg-gray-950 p-2 sm:p-3">
+                <div className="relative mx-auto overflow-hidden rounded-lg bg-black shadow-inner">
+                  <div className="flex max-h-[32vh] items-center justify-center sm:max-h-[36vh]">
+                    <Image
+                      src={preview}
+                      alt="Document being processed"
+                      width={1400}
+                      height={1200}
+                      unoptimized
+                      className="max-h-[32vh] w-full object-contain sm:max-h-[36vh]"
+                    />
+                  </div>
+
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-full">
+                    <div
+                      className="klaro-scanline absolute left-0 right-0 h-10 bg-gradient-to-b from-transparent via-blue-400/20 to-transparent"
+                      style={{
+                        boxShadow:
+                          "0 0 20px rgba(96,165,250,0.30)",
+                      }}
+                    />
+                    <div className="pointer-events-none absolute inset-2 sm:inset-3">
+                      <div className="absolute left-0 top-0 h-5 w-5 border-l-2 border-t-2 border-blue-400/90" />
+                      <div className="absolute right-0 top-0 h-5 w-5 border-r-2 border-t-2 border-blue-400/90" />
+                      <div className="absolute bottom-0 left-0 h-5 w-5 border-b-2 border-l-2 border-blue-400/90" />
+                      <div className="absolute bottom-0 right-0 h-5 w-5 border-b-2 border-r-2 border-blue-400/90" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mx-auto mt-3 max-w-md text-center">
+                  <p className="text-sm font-semibold text-white">
+                    {scanStage}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-gray-400">
+                    Klaro is reading the image and preparing the OCR results.
+                  </p>
+                </div>
+
+                <div className="mx-auto mt-3 max-w-md">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                      style={{
+                        width: `${progress}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Image OCR</span>
+                    <span>{progress}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 bg-white px-4 py-3 text-center sm:px-5">
+                <p className="text-xs text-gray-400">
+                  Please keep this window open while OCR is processing.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {cameraOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 sm:p-6">
+          <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2.5 sm:px-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                  Camera Input
+                </p>
+
+                <h2 className="text-base font-bold text-gray-800 sm:text-lg">
+                  Capture Clinic Document
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="bg-gray-950 p-3 sm:p-4">
+              <div className="overflow-hidden rounded-xl bg-black">
+                {cameraStarting ? (
+                  <div className="flex min-h-[280px] items-center justify-center px-6 py-16 text-center text-sm text-gray-300 sm:min-h-[420px]">
+                    Opening camera...
+                  </div>
+                ) : cameraError ? (
+                  <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-16 text-center sm:min-h-[420px]">
+                    <p className="max-w-md text-sm leading-6 text-red-300">
+                      {cameraError}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={openCamera}
+                      className="mt-4 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:bg-gray-100"
+                    >
+                      Try Camera Again
+                    </button>
+                  </div>
+                ) : (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="aspect-[4/3] h-auto w-full object-cover sm:max-h-[65vh]"
+                  />
+                )}
+              </div>
+
+              <p className="mt-3 text-center text-xs leading-5 text-gray-400">
+                Position the clinic document inside the frame, then capture it.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-gray-200 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={captureCameraImage}
+                disabled={
+                  cameraStarting ||
+                  Boolean(cameraError) ||
+                  !cameraStreamRef.current
+                }
+                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                Capture Image
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <style jsx>{`
+        @keyframes klaro-scanline {
+          0% {
+            transform: translateY(-80%);
+            opacity: 0;
+          }
+
+          12% {
+            opacity: 1;
+          }
+
+          88% {
+            opacity: 1;
+          }
+
+          100% {
+            transform: translateY(620%);
+            opacity: 0;
+          }
+        }
+
+        .klaro-scanline {
+          animation: klaro-scanline 2.2s ease-in-out infinite;
+          will-change: transform, opacity;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .klaro-scanline {
+            animation: none;
+            top: 50%;
+            opacity: 0.8;
+          }
+        }
+      `}</style>
     </div>
   );
 }
