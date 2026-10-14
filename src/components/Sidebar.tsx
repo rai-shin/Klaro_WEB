@@ -80,6 +80,8 @@ export default function Sidebar({
           transition-transform
           duration-300
           ease-in-out
+          dark:border-gray-700
+          dark:bg-gray-900
 
           ${
             isOpen
@@ -90,15 +92,16 @@ export default function Sidebar({
           lg:translate-x-0
         `}
       >
+
         {/* LOGO */}
 
-        <div className="flex h-20 shrink-0 items-center justify-between border-b border-gray-200 px-6">
+        <div className="flex h-20 shrink-0 items-center justify-between border-b border-gray-200 px-6 dark:border-gray-700">
           <div>
-            <h1 className="text-2xl font-bold text-blue-600">
+            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               Klaro
             </h1>
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               School Clinic
             </p>
           </div>
@@ -109,7 +112,7 @@ export default function Sidebar({
             type="button"
             onClick={handleClose}
             aria-label="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 lg:hidden dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
           >
             ×
           </button>
@@ -118,7 +121,7 @@ export default function Sidebar({
         {/* NAVIGATION */}
 
         <nav className="flex-1 overflow-y-auto px-4 py-6">
-          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
             Main Menu
           </p>
 
@@ -127,8 +130,6 @@ export default function Sidebar({
               let active = false;
 
               if (item.href === "/patients") {
-                // Only highlight Patients on the main
-                // patient list and patient detail pages.
                 active =
                   pathname === "/patients" ||
                   (
@@ -158,8 +159,8 @@ export default function Sidebar({
 
                     ${
                       active
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                     }
                   `}
                 >
@@ -178,12 +179,12 @@ export default function Sidebar({
 
         {/* PROTOTYPE NOTICE */}
 
-        <div className="m-4 shrink-0 rounded-lg bg-gray-50 p-4">
-          <p className="text-xs font-semibold text-gray-700">
+        <div className="m-4 shrink-0 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
             Prototype Version
           </p>
 
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
             Authentication and advanced security are not
             implemented yet.
           </p>

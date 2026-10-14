@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -23,18 +22,15 @@ type Patient = {
   updatedAt: string;
 };
 
+const ITEMS_PER_PAGE = 10;
+
 export default function PatientsPage() {
-  const [patients, setPatients] =
-    useState<Patient[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [search, setSearch] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   // ----------------------------------------
   // FETCH PATIENTS
@@ -49,25 +45,19 @@ export default function PatientsPage() {
       setLoading(true);
       setError("");
 
-      const response =
-        await fetch("/api/patients");
+      const response = await fetch("/api/patients");
 
       if (!response.ok) {
-        throw new Error(
-          "Failed to fetch patients."
-        );
+        throw new Error("Failed to fetch patients.");
       }
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       setPatients(data);
     } catch (error) {
       console.error(error);
 
-      setError(
-        "Unable to load patient records."
-      );
+      setError("Unable to load patient records.");
     } finally {
       setLoading(false);
     }
@@ -77,29 +67,109 @@ export default function PatientsPage() {
   // FILTER PATIENTS
   // ----------------------------------------
 
-  const filteredPatients =
-    patients.filter((patient) => {
-      const searchValue =
-        search.toLowerCase();
+  const filteredPatients = patients.filter((patient) => {
+    const searchValue = search.toLowerCase();
 
-      const fullName =
-        `${patient.firstName} ${
-          patient.middleName ?? ""
-        } ${patient.lastName}`.toLowerCase();
+    const fullName =
+      `${patient.firstName} ${
+        patient.middleName ?? ""
+      } ${patient.lastName}`.toLowerCase();
 
-      return (
-        fullName.includes(searchValue) ||
-        patient.studentId
-          .toLowerCase()
-          .includes(searchValue) ||
-        (patient.grade ?? "")
-          .toLowerCase()
-          .includes(searchValue) ||
-        (patient.section ?? "")
-          .toLowerCase()
-          .includes(searchValue)
-      );
-    });
+    return (
+      fullName.includes(searchValue) ||
+      patient.studentId
+        .toLowerCase()
+        .includes(searchValue) ||
+      (patient.grade ?? "")
+        .toLowerCase()
+        .includes(searchValue) ||
+      (patient.section ?? "")
+        .toLowerCase()
+        .includes(searchValue)
+    );
+  });
+
+  // ----------------------------------------
+  // PAGINATION
+  // ----------------------------------------
+
+  const totalPages = Math.ceil(
+    filteredPatients.length / ITEMS_PER_PAGE
+  );
+
+  const startIndex =
+    (currentPage - 1) * ITEMS_PER_PAGE;
+
+  const endIndex =
+    startIndex + ITEMS_PER_PAGE;
+
+  const paginatedPatients =
+    filteredPatients.slice(
+      startIndex,
+      endIndex
+    );
+
+  // ----------------------------------------
+  // SEARCH HANDLER
+  // ----------------------------------------
+
+  function handleSearchChange(
+    value: string
+  ) {
+    setSearch(value);
+    setCurrentPage(1);
+  }
+
+  // ----------------------------------------
+  // PAGINATION HANDLERS
+  // ----------------------------------------
+
+  function goToPreviousPage() {
+    setCurrentPage((page) =>
+      Math.max(page - 1, 1)
+    );
+  }
+
+  function goToNextPage() {
+    setCurrentPage((page) =>
+      Math.min(page + 1, totalPages)
+    );
+  }
+
+  // ----------------------------------------
+  // KEEP PAGE VALID
+  // ----------------------------------------
+
+  useEffect(() => {
+    if (
+      totalPages > 0 &&
+      currentPage > totalPages
+    ) {
+      setCurrentPage(totalPages);
+    }
+
+    if (
+      totalPages === 0 &&
+      currentPage !== 1
+    ) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  // ----------------------------------------
+  // DISPLAY RANGE
+  // ----------------------------------------
+
+  const showingStart =
+    filteredPatients.length === 0
+      ? 0
+      : startIndex + 1;
+
+  const showingEnd =
+    Math.min(
+      endIndex,
+      filteredPatients.length
+    );
 
   return (
     <AppLayout>
@@ -135,7 +205,7 @@ export default function PatientsPage() {
               placeholder="Search by name, Student ID, grade, or section..."
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                handleSearchChange(e.target.value)
               }
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
@@ -161,6 +231,7 @@ export default function PatientsPage() {
 
             <div className="overflow-x-auto">
               <table className="min-w-[750px] w-full">
+
                 <thead className="border-b border-gray-200 bg-gray-50">
                   <tr>
                     <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-6">
@@ -216,8 +287,9 @@ export default function PatientsPage() {
                         </p>
 
                         <p className="mt-1 text-sm text-gray-400">
-                          Add a patient to begin building the
-                          clinic record.
+                          {search
+                            ? "Try a different search term."
+                            : "Add a patient to begin building the clinic record."}
                         </p>
                       </td>
                     </tr>
@@ -225,7 +297,7 @@ export default function PatientsPage() {
                   /* PATIENTS */
 
                   ) : (
-                    filteredPatients.map(
+                    paginatedPatients.map(
                       (patient) => (
                         <tr
                           key={patient.id}
@@ -275,25 +347,68 @@ export default function PatientsPage() {
 
             {/* TABLE FOOTER */}
 
-            {!loading && (
-              <div className="border-t border-gray-100 px-4 py-4 sm:px-6">
+            {!loading && filteredPatients.length > 0 && (
+              <div className="flex flex-col gap-4 border-t border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+
+                {/* SHOWING */}
+
                 <p className="text-sm text-gray-500">
                   Showing{" "}
-
+                  <span className="font-medium text-gray-700">
+                    {showingStart}
+                  </span>
+                  {" – "}
+                  <span className="font-medium text-gray-700">
+                    {showingEnd}
+                  </span>
+                  {" of "}
                   <span className="font-medium text-gray-700">
                     {filteredPatients.length}
-                  </span>{" "}
-
-                  of{" "}
-
-                  <span className="font-medium text-gray-700">
-                    {patients.length}
-                  </span>{" "}
-
-                  patients
+                  </span>
+                  {" patients"}
                 </p>
+
+                {/* PAGINATION */}
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+
+                    <button
+                      type="button"
+                      onClick={goToPreviousPage}
+                      disabled={currentPage === 1}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Previous
+                    </button>
+
+                    <span className="px-2 text-sm text-gray-600">
+                      Page{" "}
+                      <span className="font-semibold text-gray-800">
+                        {currentPage}
+                      </span>
+                      {" of "}
+                      <span className="font-semibold text-gray-800">
+                        {totalPages}
+                      </span>
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={goToNextPage}
+                      disabled={
+                        currentPage === totalPages
+                      }
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+
+                  </div>
+                )}
               </div>
             )}
+
           </div>
 
         </div>
