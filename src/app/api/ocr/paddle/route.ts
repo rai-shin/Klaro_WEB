@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+//const PADDLEOCR_URL = "http://127.0.0.1:8000/ocr";//
+
 const PADDLEOCR_URL =
   process.env.PADDLEOCR_URL ||
   "http://127.0.0.1:8000/ocr";
@@ -40,63 +42,23 @@ export async function POST(request: NextRequest) {
     }
 
     const paddleFormData = new FormData();
+
     paddleFormData.append("file", file);
 
     const paddleResponse = await fetch(PADDLEOCR_URL, {
       method: "POST",
       body: paddleFormData,
-      cache: "no-store",
     });
 
-    const contentType =
-      paddleResponse.headers.get("content-type") || "unknown";
-
-    const responseText = await paddleResponse.text();
-
-    let paddleData: Record<string, unknown>;
-
-    try {
-      paddleData = JSON.parse(responseText) as Record<string, unknown>;
-    } catch {
-      console.error(
-        "[Klaro PaddleOCR] Service returned a non-JSON response:",
-        {
-          status: paddleResponse.status,
-          contentType,
-        }
-      );
-
-      return NextResponse.json(
-        {
-          success: false,
-          message: "PaddleOCR service returned an invalid response.",
-          serviceStatus: paddleResponse.status,
-          serviceContentType: contentType,
-        },
-        { status: 502 }
-      );
-    }
+    const paddleData = await paddleResponse.json();
 
     if (!paddleResponse.ok) {
-      console.error(
-        "[Klaro PaddleOCR] Service returned an HTTP error:",
-        {
-          status: paddleResponse.status,
-          contentType,
-        }
-      );
-
-      const detail =
-        typeof paddleData.detail === "string"
-          ? paddleData.detail
-          : typeof paddleData.message === "string"
-            ? paddleData.message
-            : "PaddleOCR processing failed.";
-
       return NextResponse.json(
         {
           success: false,
-          message: detail,
+          message:
+            paddleData.detail ||
+            "PaddleOCR processing failed.",
         },
         { status: paddleResponse.status }
       );
@@ -114,9 +76,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to connect to the PaddleOCR service.",
+        message:
+          "Unable to connect to the PaddleOCR service.",
       },
-      { status: 502 }
+      { status: 500 }
     );
   }
 }
