@@ -1,5 +1,7 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiSession } from "@/lib/auth-guard";
 
 type RouteContext = {
   params: Promise<{
@@ -11,6 +13,9 @@ export async function GET(
   _request: Request,
   { params }: RouteContext
 ) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const { id } = await params;
 
@@ -34,6 +39,16 @@ export async function GET(
           orderBy: {
             visitDate: "desc",
           },
+        },
+        visitationLogs: {
+          orderBy: [
+            {
+              visitDate: "desc",
+            },
+            {
+              createdAt: "desc",
+            },
+          ],
         },
         documents: {
           orderBy: {

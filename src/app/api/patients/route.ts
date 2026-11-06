@@ -1,7 +1,12 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiSession } from "@/lib/auth-guard";
 
 export async function GET(request: NextRequest) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const search = request.nextUrl.searchParams.get("search")?.trim() || "";
 
@@ -56,6 +61,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const body = await request.json();
 

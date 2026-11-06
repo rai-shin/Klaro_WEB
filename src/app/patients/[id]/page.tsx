@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -19,6 +18,22 @@ type ClinicRecord = {
   treatment: string | null;
   medication: string | null;
   remarks: string | null;
+};
+
+type VisitationLog = {
+  id: number;
+  visitDate: string;
+  timeIn: string;
+  courseYearBlock: string | null;
+  complaint: string | null;
+  signature: string | null;
+  medicineGiven: string | null;
+  quantity: string | null;
+  adviserInformed: string;
+  guardianInformed: string;
+  finalEvaluation: string | null;
+  timeOut: string | null;
+  nod: string | null;
 };
 
 type OCRResult = {
@@ -58,6 +73,7 @@ type Patient = {
   contactNumber: string | null;
   address: string | null;
   clinicRecords: ClinicRecord[];
+  visitationLogs: VisitationLog[];
   documents: Document[];
 };
 
@@ -133,7 +149,7 @@ export default function PatientDetailPage() {
           }
         />
 
-        <main className="min-h-screen lg:ml-64">
+        <main className="min-h-screen min-w-0 transition-[margin] duration-300 lg:ml-[76px]">
 
           <Header
             onMenuClick={() =>
@@ -163,7 +179,7 @@ export default function PatientDetailPage() {
           }
         />
 
-        <main className="min-h-screen lg:ml-64">
+        <main className="min-h-screen min-w-0 transition-[margin] duration-300 lg:ml-[76px]">
 
           <Header
             onMenuClick={() =>
@@ -207,7 +223,7 @@ export default function PatientDetailPage() {
 
       {/* MAIN */}
 
-      <main className="min-h-screen lg:ml-64">
+      <main className="min-h-screen min-w-0 transition-[margin] duration-300 lg:ml-[76px]">
 
         {/* HEADER */}
 
@@ -243,10 +259,10 @@ export default function PatientDetailPage() {
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
 
                 <Link
-                  href="/patients/manual"
+                  href={`/visitation-log?patientId=${patient.id}`}
                   className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-blue-700 sm:w-auto"
                 >
-                  + Clinic Record
+                  + Record Visit
                 </Link>
 
                 <Link
@@ -358,124 +374,72 @@ export default function PatientDetailPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Previous clinic visits and medical
-                  records.
+                  Previous clinic visits and medical records.
                 </p>
 
               </div>
 
-              {patient.clinicRecords.length ===
-              0 ? (
-                <div className="p-6 text-center sm:p-10">
+              {/* VISITATION LOG ENTRIES */}
 
-                  <p className="text-sm font-medium text-gray-700">
-                    No clinic records yet.
-                  </p>
+              <div className="border-b border-gray-200 p-4 sm:p-6">
 
-                  <p className="mt-1 text-sm text-gray-400">
-                    Create a manual clinic record
-                    to see it here.
-                  </p>
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800">
+                      Visitation Log Entries
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Records entered through the Visitation Log.
+                    </p>
+                  </div>
 
                 </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
 
-                  {patient.clinicRecords.map(
-                    (record) => (
+                {patient.visitationLogs?.length ? (
+                  <div className="space-y-4">
+
+                    {patient.visitationLogs.map((record) => (
                       <div
                         key={record.id}
-                        className="p-4 sm:p-6"
+                        className="rounded-xl border border-gray-200 p-4"
                       >
 
-                        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-
-                          <h3 className="font-semibold text-gray-800">
-                            Clinic Visit
-                          </h3>
-
-                          <p className="text-sm text-gray-500">
-                            {new Date(
-                              record.visitDate
-                            ).toLocaleDateString()}
-                          </p>
-
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                           <Info
-                            label="Chief Complaint"
-                            value={
-                              record.chiefComplaint ||
-                              "—"
-                            }
+                            label="Date"
+                            value={new Date(`${record.visitDate.slice(0, 10)}T00:00:00`).toLocaleDateString()}
                           />
-
-                          <Info
-                            label="Symptoms"
-                            value={
-                              record.symptoms ||
-                              "—"
-                            }
-                          />
-
-                          <Info
-                            label="Temperature"
-                            value={
-                              record.temperature ||
-                              "—"
-                            }
-                          />
-
-                          <Info
-                            label="Blood Pressure"
-                            value={
-                              record.bloodPressure ||
-                              "—"
-                            }
-                          />
-
-                          <Info
-                            label="Diagnosis"
-                            value={
-                              record.diagnosis ||
-                              "—"
-                            }
-                          />
-
-                          <Info
-                            label="Treatment"
-                            value={
-                              record.treatment ||
-                              "—"
-                            }
-                          />
-
-                          <Info
-                            label="Medication"
-                            value={
-                              record.medication ||
-                              "—"
-                            }
-                          />
-
-                          <Info
-                            label="Remarks"
-                            value={
-                              record.remarks ||
-                              "—"
-                            }
-                          />
-
-                        </div>
+                          <Info label="Time In" value={record.timeIn || "—"} />
+                          <Info label="Complaint" value={record.complaint || "—"} />
+                          <Info label="Medicine Given" value={record.medicineGiven || "—"} />
+                          <Info label="Quantity" value={record.quantity || "—"} />
+                          <Info label="Adviser Informed" value={record.adviserInformed || "—"} />
+                          <Info label="Guardian Informed" value={record.guardianInformed || "—"} />
+                          <Info label="Final Evaluation" value={record.finalEvaluation || "—"} />
+                          <Info label="Time Out" value={record.timeOut || "—"} />
+                        </div>        
 
                       </div>
-                    )
-                  )}
+                    ))}
 
-                </div>
-              )}
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-gray-50 p-6 text-center">
+
+                    <p className="text-sm font-medium text-gray-700">
+                      No visitation log entries yet.
+                    </p>
+
+                    <p className="mt-1 text-sm text-gray-400">
+                      Saved visitation records for this patient will appear here.
+                    </p>
+
+                  </div>
+                )}
+
+              </div>
 
             </section>
 
@@ -936,4 +900,3 @@ function formatFileSize(
     (1024 * 1024 * 1024)
   ).toFixed(1)} GB`;
 }
-

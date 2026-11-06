@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ReactNode, useState } from "react";
@@ -12,23 +13,18 @@ type AppLayoutProps = {
 export default function AppLayout({
   children,
 }: AppLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] =
-    useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar
         isOpen={sidebarOpen}
-        onClose={() =>
-          setSidebarOpen(false)
-        }
+        onClose={() => setSidebarOpen(false)}
       />
 
-      <main className="min-h-screen lg:ml-64">
+      <main className="min-h-screen min-w-0 transition-[margin] duration-300 lg:ml-[76px]">
         <Header
-          onMenuClick={() =>
-            setSidebarOpen(true)
-          }
+          onMenuClick={() => setSidebarOpen(true)}
         />
 
         {children}

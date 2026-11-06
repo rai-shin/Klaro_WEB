@@ -213,3 +213,89 @@ div {
     border-color 0.2s ease,
     color 0.2s ease;
 }
+
+
+
+/* =========================================================
+   KLARO AUTHENTICATION FORM TRANSITIONS
+   ========================================================= */
+
+.auth-form-stage {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  will-change: opacity, transform;
+}
+
+.auth-form-stage.is-exiting {
+  opacity: 0;
+  transform: translateY(7px);
+  pointer-events: none;
+}
+
+.auth-form-stage.is-entering {
+  animation: klaro-auth-form-in 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes klaro-auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Authentication input styling */
+.auth-input {
+  display: block;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.65rem 0.9rem;
+  color: #0f172a;
+  font-size: 0.875rem;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.auth-input::placeholder {
+  color: #94a3b8;
+}
+
+.auth-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 12%);
+}
+
+.dark .auth-input {
+  border-color: #334155;
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.dark .auth-input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgb(96 165 250 / 12%);
+}
+
+.dark .auth-input::placeholder {
+  color: #64748b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-form-stage {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

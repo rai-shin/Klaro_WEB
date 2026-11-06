@@ -536,10 +536,6 @@ export type FloatFieldUpdateOperationsInput = {
   divide?: number
 }
 
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type OCRWordCreateWithoutOcrResultInput = {
   originalWord: string
   confidence: number

@@ -1,28 +1,14 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 
 type HeaderProps = {
   onMenuClick?: () => void;
 };
 
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/patients": "Patient List",
-  "/patients/add": "Add Patient",
-  "/patients/manual": "Clinic Visit",
-  "/ocr": "OCR Input",
-};
-
 export default function Header({
   onMenuClick,
 }: HeaderProps) {
-  const pathname = usePathname();
-
-  const title =
-    pageTitles[pathname] || "Klaro";
-
-  return (
+return (
     <header className="flex h-20 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8 dark:border-gray-700 dark:bg-gray-900">
       
       {/* LEFT SIDE */}

@@ -1,3 +1,4 @@
+
 import {
   NextResponse,
 } from "next/server";
@@ -6,9 +7,16 @@ import {
   prisma,
 } from "@/lib/prisma";
 
+import {
+  requireApiSession,
+} from "@/lib/auth-guard";
+
 export async function POST(
   request: Request
 ) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const body =
       await request.json();

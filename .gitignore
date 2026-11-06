@@ -45,9 +45,14 @@ next-env.d.ts
 /paddleocr-service/__pycache__/
 *.pyc
 /structure.txt
-/public/uploads/klaro-ocr-1788436946544-6iq0blj0-260df6b5-eafc-4d02-9ddd-f903cfa208f4.jpg
+/public/uploads/*
+!/public/uploads/.gitkeep
 
 # PaddleOCR test files
 /paddleocr-service/*.webp
 /paddleocr-service/test-image*.jpg
 /paddleocr-service/ocr_result.json
+
+
+/prisma/better-auth-schema.prisma
+/schema.before-better-auth.prisma

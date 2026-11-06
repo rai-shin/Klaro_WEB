@@ -1,5 +1,7 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiSession } from "@/lib/auth-guard";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -30,12 +32,19 @@ export async function GET(
     params: Promise<{ id: string }>;
   }
 ) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const { id } = await context.params;
 
     const documentId = Number(id);
 
-    if (Number.isNaN(documentId)) {
+    // Validate document ID.
+    if (
+      !Number.isSafeInteger(documentId) ||
+      documentId <= 0
+    ) {
       return NextResponse.json(
         {
           message: "Invalid document ID.",
@@ -44,6 +53,7 @@ export async function GET(
       );
     }
 
+    // Find document in PostgreSQL.
     const document = await prisma.document.findUnique({
       where: {
         id: documentId,
@@ -68,6 +78,7 @@ export async function GET(
       );
     }
 
+    // Generate temporary signed URL.
     const { data, error } = await supabase.storage
       .from("klaro-documents")
       .createSignedUrl(document.filePath, 60);

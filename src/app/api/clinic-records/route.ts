@@ -1,5 +1,7 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiSession } from "@/lib/auth-guard";
 
 // GET clinic records
 //
@@ -9,6 +11,9 @@ import { prisma } from "@/lib/prisma";
 // GET /api/clinic-records?patientId=1
 //     → returns records for patient 1
 export async function GET(request: Request) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get("patientId");
@@ -73,6 +78,9 @@ export async function GET(request: Request) {
 
 // POST clinic record
 export async function POST(request: Request) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const body = await request.json();
 

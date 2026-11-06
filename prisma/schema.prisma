@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -6,6 +7,95 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ==========================================
+// USER ROLES
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+// ==========================================
+// BETTER AUTH MODELS
+// ==========================================
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+
+  // Klaro account management
+  role          UserRole  @default(USER)
+  isActive      Boolean   @default(false)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions      Session[]
+  accounts      Account[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ==========================================
+// KLARO PATIENT MANAGEMENT
+// ==========================================
 
 model Patient {
   id            Int            @id @default(autoincrement())
@@ -21,12 +111,17 @@ model Patient {
   contactNumber String?
   address       String?
 
-  clinicRecords ClinicRecord[]
-  documents     Document[]
+  clinicRecords  ClinicRecord[]
+  documents      Document[]
+  visitationLogs VisitationLog[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
+
+// ==========================================
+// KLARO CLINIC RECORDS
+// ==========================================
 
 model ClinicRecord {
   id             Int      @id @default(autoincrement())
@@ -47,6 +142,39 @@ model ClinicRecord {
   patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
+// ==========================================
+// KLARO VISITATION LOG
+// ==========================================
+
+model VisitationLog {
+  id               Int      @id @default(autoincrement())
+  patientId        Int
+  visitDate        DateTime
+  timeIn           String
+  courseYearBlock  String?
+  complaint        String?
+  signature        String?
+  medicineGiven    String?
+  quantity         String?
+  adviserInformed  String   @default("No")
+  guardianInformed String   @default("No")
+  finalEvaluation  String?
+  timeOut          String?
+  nod              String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([visitDate])
+}
+
+// ==========================================
+// KLARO DOCUMENT MANAGEMENT
+// ==========================================
+
 model Document {
   id               Int        @id @default(autoincrement())
   patientId        Int
@@ -64,6 +192,10 @@ model Document {
 
   patient          Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
+
+// ==========================================
+// KLARO OCR RESULTS
+// ==========================================
 
 model OCRResult {
   id               Int        @id @default(autoincrement())
@@ -83,21 +215,18 @@ model OCRResult {
   document         Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
+// ==========================================
+// KLARO OCR WORD REVIEW
+// ==========================================
+
 model OCRWord {
   id               Int       @id @default(autoincrement())
-
   ocrResultId      Int
-
   originalWord     String
-
   confidence       Float
-
   isFlagged        Boolean   @default(false)
-
   suggestedWord    String?
-
   reviewDecision   String    @default("PENDING")
-
   occurrences      Int       @default(1)
 
   createdAt        DateTime  @default(now())

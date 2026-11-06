@@ -4,6 +4,7 @@ import sharp from "sharp";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireApiSession } from "@/lib/auth-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -209,9 +210,7 @@ function isProbablyGarbage(
   if (
     normalized.length >= 5 &&
     !/[aeiou]/i.test(normalized) &&
-    !ALLOW_SHORT_WORDS.has(
-      normalized
-    )
+    !ALLOW_SHORT_WORDS.has(normalized)
   ) {
     return true;
   }
@@ -223,8 +222,7 @@ function isProbablyGarbage(
 
   if (
     text.length > 2 &&
-    punctuationCount / text.length >
-      0.6
+    punctuationCount / text.length > 0.6
   ) {
     return true;
   }
@@ -251,24 +249,19 @@ function parseHOCR(
   const wordRegex =
     /<span[^>]*class=['"][^'"]*(?:ocrx_word|ocr_word)[^'"]*['"][^>]*title=['"]([^'"]*)['"][^>]*>([\s\S]*?)<\/span>/gi;
 
-  let match:
-    | RegExpExecArray
-    | null;
+  let match: RegExpExecArray | null;
 
   while (
-    (match =
-      wordRegex.exec(hocr)) !== null
+    (match = wordRegex.exec(hocr)) !== null
   ) {
-    const title =
-      match[1];
+    const title = match[1];
 
-    const rawText =
-      match[2]
-        .replace(
-          /<[^>]+>/g,
-          ""
-        )
-        .trim();
+    const rawText = match[2]
+      .replace(
+        /<[^>]+>/g,
+        ""
+      )
+      .trim();
 
     if (!rawText) {
       continue;
@@ -286,29 +279,16 @@ function parseHOCR(
 
     const confidence =
       confidenceMatch
-        ? Number(
-            confidenceMatch[1]
-          )
+        ? Number(confidenceMatch[1])
         : 0;
 
     const bbox =
       bboxMatch
         ? {
-            x0: Number(
-              bboxMatch[1]
-            ),
-
-            y0: Number(
-              bboxMatch[2]
-            ),
-
-            x1: Number(
-              bboxMatch[3]
-            ),
-
-            y1: Number(
-              bboxMatch[4]
-            ),
+            x0: Number(bboxMatch[1]),
+            y0: Number(bboxMatch[2]),
+            x1: Number(bboxMatch[3]),
+            y1: Number(bboxMatch[4]),
           }
         : undefined;
 
@@ -319,8 +299,7 @@ function parseHOCR(
 
       confidence,
 
-      originalConfidence:
-        confidence,
+      originalConfidence: confidence,
 
       suggestion: null,
 
@@ -360,8 +339,7 @@ function parseTSV(
     i < lines.length;
     i++
   ) {
-    const line =
-      lines[i];
+    const line = lines[i];
 
     if (!line.trim()) {
       continue;
@@ -430,14 +408,9 @@ function parseTSV(
 
       bbox: {
         x0: left,
-
         y0: top,
-
-        x1:
-          left + width,
-
-        y1:
-          top + height,
+        x1: left + width,
+        y1: top + height,
       },
     });
   }
@@ -481,13 +454,13 @@ function deduplicateWords(
           const xDistance =
             Math.abs(
               existing.bbox.x0 -
-                word.bbox.x0
+              word.bbox.x0
             );
 
           const yDistance =
             Math.abs(
               existing.bbox.y0 -
-                word.bbox.y0
+              word.bbox.y0
             );
 
           return (
@@ -563,9 +536,7 @@ function buildTextFromWords(
           b.bbox!.y0;
 
         if (
-          Math.abs(
-            ay - by
-          ) > 12
+          Math.abs(ay - by) > 12
         ) {
           return ay - by;
         }
@@ -577,8 +548,7 @@ function buildTextFromWords(
       }
     );
 
-  const lines:
-    OCRWord[][] = [];
+  const lines: OCRWord[][] = [];
 
   for (
     const word of sorted
@@ -608,12 +578,10 @@ function buildTextFromWords(
     if (
       Math.abs(
         word.bbox!.y0 -
-          currentY
+        currentY
       ) <= 12
     ) {
-      currentLine.push(
-        word
-      );
+      currentLine.push(word);
     } else {
       lines.push([
         word,
@@ -692,8 +660,7 @@ function calculateCandidateMetrics(
   // Tesseract's overall confidence.
   const combinedConfidence =
     wordConfidence * 0.65 +
-    tesseractConfidence *
-      0.35;
+    tesseractConfidence * 0.35;
 
   const wordsWithBbox =
     words.filter(
@@ -772,8 +739,7 @@ function calculateCandidateMetrics(
 
     verticalCoverage =
       clamp(
-        height /
-          imageHeight,
+        height / imageHeight,
         0,
         1
       );
@@ -795,8 +761,7 @@ function calculateCandidateMetrics(
           b.bbox!.y0
       );
 
-    const lineYs:
-      number[] = [];
+    const lineYs: number[] = [];
 
     for (
       const word of sorted
@@ -813,8 +778,7 @@ function calculateCandidateMetrics(
         );
 
       if (
-        existingLine ===
-        undefined
+        existingLine === undefined
       ) {
         lineYs.push(y);
       }
@@ -927,8 +891,7 @@ function selectBestCandidate(
     );
 
   const pool =
-    strongCandidates.length >
-    0
+    strongCandidates.length > 0
       ? strongCandidates
       : candidates;
 
@@ -1200,6 +1163,16 @@ async function recognizeImage(
 export async function POST(
   request: NextRequest
 ) {
+  // ----------------------------------------------
+  // AUTHENTICATION CHECK
+  // ----------------------------------------------
+
+  const authError = await requireApiSession();
+
+  if (authError) {
+    return authError;
+  }
+
   const requestStart =
     Date.now();
 

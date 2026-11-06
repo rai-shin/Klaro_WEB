@@ -1,3 +1,4 @@
+
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -136,7 +137,7 @@ export default function AddPatientPage() {
 
       {/* MAIN */}
 
-      <main className="min-h-screen lg:ml-64">
+      <main className="min-h-screen min-w-0 transition-[margin] duration-300 lg:ml-[76px]">
 
         {/* HEADER */}
 

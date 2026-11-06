@@ -134,20 +134,6 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Prototype Information */}
-          <section className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/60 sm:mt-8 sm:p-6">
-            <h2 className="font-semibold text-blue-800 dark:text-blue-200">
-              Prototype Information
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-blue-700 dark:text-blue-300">
-              Klaro is currently a prototype of a school clinic
-              document management system. OCR, confidence-based
-              error detection, document processing, and
-              PostgreSQL storage will be implemented progressively.
-            </p>
-          </section>
-
         </div>
       </div>
     </AppLayout>

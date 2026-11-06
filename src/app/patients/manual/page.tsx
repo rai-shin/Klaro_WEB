@@ -1,3 +1,4 @@
+
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
@@ -68,10 +69,6 @@ export default function ManualInputPage() {
   // LOAD PATIENTS
   // ----------------------------------------
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
   async function fetchPatients() {
     try {
       setLoadingPatients(true);
@@ -99,6 +96,12 @@ export default function ManualInputPage() {
       setLoadingPatients(false);
     }
   }
+
+  useEffect(() => {
+  queueMicrotask(() => {
+    void fetchPatients();
+  });
+}, []);
 
   // ----------------------------------------
   // HANDLE INPUT

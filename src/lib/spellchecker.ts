@@ -104,11 +104,6 @@ export async function initializeSpellchecker(): Promise<void> {
               "spellchecker-wasm/lib/browser"
             );
 
-          const baseModule =
-            await import(
-              "spellchecker-wasm/lib/SpellCheckerBase"
-            );
-
           const {
             SpellcheckerWasm,
           } = browserModule;

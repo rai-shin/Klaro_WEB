@@ -1,9 +1,14 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiSession } from "@/lib/auth-guard";
 
 // GET /api/documents
 // GET /api/documents?patientId=1
 export async function GET(request: Request) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const { searchParams } = new URL(request.url);
     const patientIdValue = searchParams.get("patientId");
@@ -84,6 +89,9 @@ export async function GET(request: Request) {
 //
 // This is used when saving an OCR-processed document.
 export async function POST(request: Request) {
+  const authError = await requireApiSession();
+  if (authError) return authError;
+
   try {
     const body = await request.json();
 

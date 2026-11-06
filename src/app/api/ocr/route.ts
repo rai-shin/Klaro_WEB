@@ -1,5 +1,7 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiSession } from "@/lib/auth-guard";
 
 // --------------------------------------------------
 // TYPES
@@ -17,8 +19,20 @@ type ReviewWordInput = {
   occurrences: number;
   suggestion?: string | null;
   isFlagged?: boolean;
-  decision?: string;
+  decision?: "ACCEPTED" | "IGNORED" | "PENDING";
 };
+
+const ALLOWED_PROCESSING_METHODS = [
+  "OCR_IMAGE",
+  "OCR_PDF",
+  "TEXT_EXTRACTION",
+] as const;
+
+const ALLOWED_REVIEW_DECISIONS = [
+  "ACCEPTED",
+  "IGNORED",
+  "PENDING",
+] as const;
 
 // --------------------------------------------------
 // NORMALIZE WORD
@@ -32,33 +46,114 @@ function normalizeWord(word: string) {
 }
 
 // --------------------------------------------------
-// VALIDATE REVIEW DECISION
+// VALIDATE REQUEST BODY
 // --------------------------------------------------
 
-function getReviewDecision(
-  decision?: string
-) {
-  if (
-    decision === "ACCEPTED" ||
-    decision === "IGNORED" ||
-    decision === "PENDING"
-  ) {
-    return decision;
+function isObject(
+  value: unknown
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function isRawOCRWord(
+  value: unknown
+): value is RawOCRWordInput {
+  if (!isObject(value)) {
+    return false;
   }
 
-  return "PENDING";
+  return (
+    typeof value.text === "string" &&
+    typeof value.confidence === "number" &&
+    Number.isFinite(value.confidence) &&
+    value.confidence >= 0 &&
+    value.confidence <= 100
+  );
+}
+
+function isReviewWord(
+  value: unknown
+): value is ReviewWordInput {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  const validDecision =
+    value.decision === undefined ||
+    ALLOWED_REVIEW_DECISIONS.includes(
+      value.decision as (typeof ALLOWED_REVIEW_DECISIONS)[number]
+    );
+
+  const validSuggestion =
+    value.suggestion === undefined ||
+    value.suggestion === null ||
+    typeof value.suggestion === "string";
+
+  const validFlag =
+    value.isFlagged === undefined ||
+    typeof value.isFlagged === "boolean";
+
+  return (
+    typeof value.normalized === "string" &&
+    typeof value.displayWord === "string" &&
+    typeof value.confidence === "number" &&
+    Number.isFinite(value.confidence) &&
+    value.confidence >= 0 &&
+    value.confidence <= 100 &&
+    typeof value.occurrences === "number" &&
+    Number.isSafeInteger(value.occurrences) &&
+    value.occurrences > 0 &&
+    validDecision &&
+    validSuggestion &&
+    validFlag
+  );
 }
 
 // --------------------------------------------------
 // POST
 // --------------------------------------------------
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    const body =
-      await request.json();
+    // ----------------------------------------
+    // AUTHENTICATION
+    // ----------------------------------------
+
+    const authError = await requireApiSession();
+
+    if (authError) {
+      return authError;
+    }
+
+    // ----------------------------------------
+    // PARSE REQUEST BODY
+    // ----------------------------------------
+
+    let body: unknown;
+
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          message: "Invalid JSON request body.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!isObject(body)) {
+      return NextResponse.json(
+        {
+          message: "Invalid request body.",
+        },
+        { status: 400 }
+      );
+    }
 
     const {
       documentId,
@@ -75,7 +170,8 @@ export async function POST(
     // ----------------------------------------
 
     if (
-      !documentId ||
+      documentId === undefined ||
+      documentId === null ||
       originalText === undefined ||
       correctedText === undefined ||
       !processingMethod
@@ -85,9 +181,7 @@ export async function POST(
           message:
             "Document, original text, corrected text, and processing method are required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -104,33 +198,25 @@ export async function POST(
           message:
             "Original text and corrected text must be strings.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
     // ----------------------------------------
-    // CONVERT DOCUMENT ID
+    // CONVERT AND VALIDATE DOCUMENT ID
     // ----------------------------------------
 
-    const numericDocumentId =
-      Number(documentId);
+    const numericDocumentId = Number(documentId);
 
     if (
-      !Number.isInteger(
-        numericDocumentId
-      ) ||
+      !Number.isSafeInteger(numericDocumentId) ||
       numericDocumentId <= 0
     ) {
       return NextResponse.json(
         {
-          message:
-            "Invalid document ID.",
+          message: "Invalid document ID.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -138,48 +224,17 @@ export async function POST(
     // VALIDATE PROCESSING METHOD
     // ----------------------------------------
 
-    const allowedProcessingMethods = [
-      "OCR_IMAGE",
-      "OCR_PDF",
-      "TEXT_EXTRACTION",
-    ];
-
     if (
-      !allowedProcessingMethods.includes(
-        processingMethod
+      typeof processingMethod !== "string" ||
+      !ALLOWED_PROCESSING_METHODS.includes(
+        processingMethod as (typeof ALLOWED_PROCESSING_METHODS)[number]
       )
     ) {
       return NextResponse.json(
         {
-          message:
-            "Invalid processing method.",
+          message: "Invalid processing method.",
         },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // ----------------------------------------
-    // CHECK DOCUMENT
-    // ----------------------------------------
-
-    const document =
-      await prisma.document.findUnique({
-        where: {
-          id: numericDocumentId,
-        },
-      });
-
-    if (!document) {
-      return NextResponse.json(
-        {
-          message:
-            "Document not found.",
-        },
-        {
-          status: 404,
-        }
+        { status: 400 }
       );
     }
 
@@ -187,198 +242,183 @@ export async function POST(
     // VALIDATE CONFIDENCE
     // ----------------------------------------
 
-    let numericConfidence:
-      | number
-      | null = null;
+    let numericConfidence: number | null = null;
 
-    if (
-      confidence !== null &&
-      confidence !== undefined
-    ) {
-      numericConfidence =
-        Number(confidence);
-
+    if (confidence !== null && confidence !== undefined) {
       if (
-        !Number.isFinite(
-          numericConfidence
-        ) ||
-        numericConfidence < 0 ||
-        numericConfidence > 100
+        typeof confidence !== "number" ||
+        !Number.isFinite(confidence) ||
+        confidence < 0 ||
+        confidence > 100
       ) {
         return NextResponse.json(
           {
-            message:
-              "Confidence must be between 0 and 100.",
+            message: "Confidence must be between 0 and 100.",
           },
-          {
-            status: 400,
-          }
+          { status: 400 }
         );
       }
+
+      numericConfidence = confidence;
     }
 
     // ----------------------------------------
-    // DETERMINE CORRECTIONS
+    // VALIDATE WORD ARRAYS
+    // ----------------------------------------
+
+    if (
+      words !== undefined &&
+      !Array.isArray(words)
+    ) {
+      return NextResponse.json(
+        {
+          message: "OCR words must be an array.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      reviewWords !== undefined &&
+      !Array.isArray(reviewWords)
+    ) {
+      return NextResponse.json(
+        {
+          message: "Review words must be an array.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const rawWords: RawOCRWordInput[] =
+      words ?? [];
+
+    const reviewWordList: ReviewWordInput[] =
+      reviewWords ?? [];
+
+    if (!rawWords.every(isRawOCRWord)) {
+      return NextResponse.json(
+        {
+          message: "One or more OCR words contain invalid data.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!reviewWordList.every(isReviewWord)) {
+      return NextResponse.json(
+        {
+          message: "One or more review words contain invalid data.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ----------------------------------------
+    // CHECK DOCUMENT
+    // ----------------------------------------
+
+    const document = await prisma.document.findUnique({
+      where: {
+        id: numericDocumentId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!document) {
+      return NextResponse.json(
+        {
+          message: "Document not found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    // ----------------------------------------
+    // DETERMINE CORRECTIONS AND STATUS
     // ----------------------------------------
 
     const hasCorrections =
-      originalText.trim() !==
-      correctedText.trim();
-
-    // ----------------------------------------
-    // DETERMINE STATUS
-    // ----------------------------------------
+      originalText.trim() !== correctedText.trim();
 
     let recordStatus = "REVIEW";
 
-    if (
-      processingMethod ===
-      "TEXT_EXTRACTION"
-    ) {
+    if (processingMethod === "TEXT_EXTRACTION") {
       recordStatus = "EXTRACTED";
     } else if (hasCorrections) {
       recordStatus = "CORRECTED";
     }
 
     // ----------------------------------------
-    // PREPARE RAW OCR WORDS
+    // PREPARE REVIEW WORD LOOKUP
     // ----------------------------------------
 
-    const rawWords:
-      RawOCRWordInput[] =
-      Array.isArray(words)
-        ? words
-        : [];
+    const reviewLookup = new Map<
+      string,
+      ReviewWordInput
+    >();
 
-    // ----------------------------------------
-    // PREPARE REVIEW WORDS
-    // ----------------------------------------
-
-    const reviewWordList:
-      ReviewWordInput[] =
-      Array.isArray(reviewWords)
-        ? reviewWords
-        : [];
-
-    // ----------------------------------------
-    // CREATE REVIEW LOOKUP
-    // ----------------------------------------
-
-    const reviewLookup =
-      new Map<
-        string,
-        ReviewWordInput
-      >();
-
-    for (
-      const reviewWord of reviewWordList
-    ) {
-      if (
-        !reviewWord ||
-        typeof reviewWord.normalized !==
-          "string"
-      ) {
-        continue;
-      }
-
-      const normalized =
-        normalizeWord(
-          reviewWord.normalized
-        );
+    for (const reviewWord of reviewWordList) {
+      const normalized = normalizeWord(
+        reviewWord.normalized
+      );
 
       if (!normalized) {
         continue;
       }
 
-      reviewLookup.set(
+      reviewLookup.set(normalized, {
+        ...reviewWord,
         normalized,
-        {
-          ...reviewWord,
-          normalized,
-        }
-      );
+      });
     }
 
     // ----------------------------------------
-    // GROUP RAW WORDS
-    //
-    // This prevents duplicate OCR words
-    // from being stored as separate records.
+    // GROUP DUPLICATE OCR WORDS
     // ----------------------------------------
 
-    const groupedWords =
-      new Map<
-        string,
-        {
-          originalWord: string;
-          confidence: number;
-          occurrences: number;
-        }
-      >();
-
-    for (
-      const word of rawWords
-    ) {
-      if (
-        !word ||
-        typeof word.text !== "string"
-      ) {
-        continue;
+    const groupedWords = new Map<
+      string,
+      {
+        originalWord: string;
+        confidence: number;
+        occurrences: number;
       }
+    >();
 
-      const originalWord =
-        word.text.trim();
+    for (const word of rawWords) {
+      const originalWord = word.text.trim();
 
-      const normalized =
-        normalizeWord(
-          originalWord
-        );
+      const normalized = normalizeWord(
+        originalWord
+      );
 
       if (!normalized) {
         continue;
       }
 
-      const numericWordConfidence =
-        Number(
-          word.confidence
-        );
+      const validConfidence = Math.max(
+        0,
+        Math.min(100, word.confidence)
+      );
 
-      const validConfidence =
-        Number.isFinite(
-          numericWordConfidence
-        )
-          ? Math.max(
-              0,
-              Math.min(
-                100,
-                numericWordConfidence
-              )
-            )
-          : 0;
-
-      const existing =
-        groupedWords.get(
-          normalized
-        );
+      const existing = groupedWords.get(normalized);
 
       if (existing) {
         existing.occurrences += 1;
 
-        existing.confidence =
-          Math.min(
-            existing.confidence,
-            validConfidence
-          );
-      } else {
-        groupedWords.set(
-          normalized,
-          {
-            originalWord,
-            confidence:
-              validConfidence,
-            occurrences: 1,
-          }
+        existing.confidence = Math.min(
+          existing.confidence,
+          validConfidence
         );
+      } else {
+        groupedWords.set(normalized, {
+          originalWord,
+          confidence: validConfidence,
+          occurrences: 1,
+        });
       }
     }
 
@@ -386,152 +426,109 @@ export async function POST(
     // PREPARE DATABASE WORD DATA
     // ----------------------------------------
 
-    const preparedWords =
-      Array.from(
-        groupedWords.entries()
-      ).map(
-        ([
-          normalized,
-          wordData,
-        ]) => {
-          const reviewData =
-            reviewLookup.get(
-              normalized
-            );
+    const preparedWords = Array.from(
+      groupedWords.entries()
+    ).map(([normalized, wordData]) => {
+      const reviewData = reviewLookup.get(normalized);
 
-          const reviewOccurrences =
-            Number(
-              reviewData?.occurrences
-            );
+      const validOccurrences =
+        reviewData?.occurrences ??
+        wordData.occurrences;
 
-          const validOccurrences =
-            Number.isFinite(
-              reviewOccurrences
-            ) &&
-            reviewOccurrences > 0
-              ? Math.floor(
-                  reviewOccurrences
-                )
-              : wordData.occurrences;
+      const isFlagged =
+        reviewData?.isFlagged ??
+        wordData.confidence < 70;
 
-          const isFlagged =
-            reviewData?.isFlagged ??
-            wordData.confidence < 70;
+      const suggestedWord =
+        reviewData?.suggestion?.trim() || null;
 
-          const suggestedWord =
-            reviewData?.suggestion
-              ?.trim() || null;
+      const reviewDecision =
+        reviewData?.decision ?? "PENDING";
 
-          const reviewDecision =
-            getReviewDecision(
-              reviewData?.decision
-            );
+      return {
+        originalWord:
+          reviewData?.displayWord.trim() ||
+          wordData.originalWord,
 
-          return {
-            originalWord:
-              reviewData?.displayWord?.trim() ||
-              wordData.originalWord,
+        confidence: wordData.confidence,
 
-            confidence:
-              wordData.confidence,
+        isFlagged,
 
-            isFlagged,
+        suggestedWord,
 
-            suggestedWord,
+        reviewDecision,
 
-            reviewDecision,
-
-            occurrences:
-              validOccurrences,
-          };
-        }
-      );
-
-    // ----------------------------------------
-    // CREATE OR UPDATE OCR RESULT
-    // ----------------------------------------
-
-    const result =
-      await prisma.oCRResult.upsert({
-        where: {
-          documentId:
-            numericDocumentId,
-        },
-
-        create: {
-          documentId:
-            numericDocumentId,
-
-          originalText,
-
-          correctedText,
-
-          confidence:
-            numericConfidence,
-
-          status:
-            recordStatus,
-
-          processingMethod,
-
-          correctedAt:
-            hasCorrections
-              ? new Date()
-              : null,
-
-          words:
-            preparedWords.length > 0
-              ? {
-                  create:
-                    preparedWords,
-                }
-              : undefined,
-        },
-
-        update: {
-          originalText,
-
-          correctedText,
-
-          confidence:
-            numericConfidence,
-
-          status:
-            recordStatus,
-
-          processingMethod,
-
-          correctedAt:
-            hasCorrections
-              ? new Date()
-              : null,
-
-          words: {
-            deleteMany: {},
-
-            create:
-              preparedWords,
-          },
-        },
-
-        include: {
-          words: true,
-        },
-      });
-
-    // ----------------------------------------
-    // UPDATE DOCUMENT
-    // ----------------------------------------
-
-    await prisma.document.update({
-      where: {
-        id: numericDocumentId,
-      },
-
-      data: {
-        processingMethod,
-      },
+        occurrences: validOccurrences,
+      };
     });
+
+    // ----------------------------------------
+    // SAVE OCR RESULT AND UPDATE DOCUMENT
+    // ATOMICALLY USING A TRANSACTION
+    // ----------------------------------------
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const savedResult = await tx.oCRResult.upsert({
+          where: {
+            documentId: numericDocumentId,
+          },
+
+          create: {
+            documentId: numericDocumentId,
+            originalText,
+            correctedText,
+            confidence: numericConfidence,
+            status: recordStatus,
+            processingMethod,
+
+            correctedAt: hasCorrections
+              ? new Date()
+              : null,
+
+            words:
+              preparedWords.length > 0
+                ? {
+                    create: preparedWords,
+                  }
+                : undefined,
+          },
+
+          update: {
+            originalText,
+            correctedText,
+            confidence: numericConfidence,
+            status: recordStatus,
+            processingMethod,
+
+            correctedAt: hasCorrections
+              ? new Date()
+              : null,
+
+            words: {
+              deleteMany: {},
+              create: preparedWords,
+            },
+          },
+
+          include: {
+            words: true,
+          },
+        });
+
+        await tx.document.update({
+          where: {
+            id: numericDocumentId,
+          },
+
+          data: {
+            processingMethod,
+          },
+        });
+
+        return savedResult;
+      }
+    );
 
     // ----------------------------------------
     // SUCCESS
@@ -539,14 +536,10 @@ export async function POST(
 
     return NextResponse.json(
       {
-        message:
-          "OCR result saved successfully.",
-
+        message: "OCR result saved successfully.",
         result,
       },
-      {
-        status: 201,
-      }
+      { status: 201 }
     );
   } catch (error) {
     console.error(
@@ -556,14 +549,9 @@ export async function POST(
 
     return NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to save OCR result.",
+        message: "Failed to save OCR result.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

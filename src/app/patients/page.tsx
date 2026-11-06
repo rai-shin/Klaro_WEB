@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -36,10 +37,6 @@ export default function PatientsPage() {
   // FETCH PATIENTS
   // ----------------------------------------
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
   async function fetchPatients() {
     try {
       setLoading(true);
@@ -62,6 +59,12 @@ export default function PatientsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchPatients();
+    });
+  }, []);
 
   // ----------------------------------------
   // FILTER PATIENTS
@@ -97,8 +100,13 @@ export default function PatientsPage() {
     filteredPatients.length / ITEMS_PER_PAGE
   );
 
+  const validPage = Math.min(
+    currentPage,
+    Math.max(totalPages, 1)
+  );
+
   const startIndex =
-    (currentPage - 1) * ITEMS_PER_PAGE;
+    (validPage - 1) * ITEMS_PER_PAGE;
 
   const endIndex =
     startIndex + ITEMS_PER_PAGE;
@@ -135,26 +143,6 @@ export default function PatientsPage() {
       Math.min(page + 1, totalPages)
     );
   }
-
-  // ----------------------------------------
-  // KEEP PAGE VALID
-  // ----------------------------------------
-
-  useEffect(() => {
-    if (
-      totalPages > 0 &&
-      currentPage > totalPages
-    ) {
-      setCurrentPage(totalPages);
-    }
-
-    if (
-      totalPages === 0 &&
-      currentPage !== 1
-    ) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, totalPages]);
 
   // ----------------------------------------
   // DISPLAY RANGE
@@ -376,7 +364,7 @@ export default function PatientsPage() {
                     <button
                       type="button"
                       onClick={goToPreviousPage}
-                      disabled={currentPage === 1}
+                      disabled={validPage === 1}
                       className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Previous
@@ -385,7 +373,7 @@ export default function PatientsPage() {
                     <span className="px-2 text-sm text-gray-600">
                       Page{" "}
                       <span className="font-semibold text-gray-800">
-                        {currentPage}
+                        {validPage}
                       </span>
                       {" of "}
                       <span className="font-semibold text-gray-800">
@@ -396,9 +384,7 @@ export default function PatientsPage() {
                     <button
                       type="button"
                       onClick={goToNextPage}
-                      disabled={
-                        currentPage === totalPages
-                      }
+                      disabled={validPage === totalPages}
                       className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Next

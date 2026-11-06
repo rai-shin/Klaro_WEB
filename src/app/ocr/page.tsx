@@ -98,6 +98,8 @@ export default function OCRPage() {
   const [cameraStarting, setCameraStarting] =
     useState(false);
 
+  const [cameraReady, setCameraReady] = useState(false);
+
   const [cameraError, setCameraError] =
     useState("");
 
@@ -314,13 +316,6 @@ export default function OCRPage() {
   // SYNC LAYER 2 TO LAYER 3
   // --------------------------------------------------
 
-  function updateReviewedText(
-    value: string
-  ) {
-    setReviewedText(value);
-    setCorrectedText(value);
-  }
-
   // --------------------------------------------------
   // DETECT DOCUMENT TYPE
   // --------------------------------------------------
@@ -429,6 +424,8 @@ export default function OCRPage() {
   // --------------------------------------------------
 
   function stopCamera() {
+    setCameraReady(false);
+
     if (cameraStreamRef.current) {
       cameraStreamRef.current
         .getTracks()
@@ -486,6 +483,7 @@ export default function OCRPage() {
         });
 
       cameraStreamRef.current = stream;
+      setCameraReady(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject =
@@ -1180,7 +1178,6 @@ async function processImage() {
     }
 
     if (words.length === 0) {
-      setCorrectionSuggestions({});
       return;
     }
 
@@ -1737,7 +1734,7 @@ async function processImage() {
 
       {/* MAIN */}
 
-      <main className="min-h-screen lg:ml-64">
+      <main className="min-h-screen min-w-0 transition-[margin] duration-300 lg:ml-[76px]">
 
         {/* HEADER */}
 
@@ -2588,7 +2585,7 @@ async function processImage() {
                 disabled={
                   cameraStarting ||
                   Boolean(cameraError) ||
-                  !cameraStreamRef.current
+                  !cameraReady
                 }
                 className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
