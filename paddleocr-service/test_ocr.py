@@ -1,7 +1,7 @@
 
 from paddleocr import PaddleOCR
 from pathlib import Path
-import json
+
 
 # Ask the user for an image path
 user_path = input("Enter the image path: ").strip().strip('"')
@@ -55,12 +55,6 @@ for result in results:
             "status": status,
             "flagged": status == "NEEDS_REVIEW"
         })
-
-output_path = Path("ocr_result.json")
-
-with open(output_path, "w", encoding="utf-8") as file:
-    json.dump(ocr_output, file, indent=2, ensure_ascii=False)
-
 high_count = 0
 moderate_count = 0
 needs_review_count = 0
@@ -94,7 +88,7 @@ if total_lines > 0:
 
 print("OCR processing completed.")
 print(f"Total text lines: {len(ocr_output)}")
-print(f"Results saved to: {output_path}")
+
 
 print("\nOCR RESULTS:\n")
 

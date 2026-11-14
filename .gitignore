@@ -53,6 +53,12 @@ next-env.d.ts
 /paddleocr-service/test-image*.jpg
 /paddleocr-service/ocr_result.json
 
+# Sensitive OCR outputs and temporary test images
+/paddleocr-service/Paolo_HealthRecord-1.png
+/paddleocr-service/ocr_raw_result.json
+/paddleocr-service/response3.json
+/paddleocr-service/test/
+
 
 /prisma/better-auth-schema.prisma
 /schema.before-better-auth.prisma

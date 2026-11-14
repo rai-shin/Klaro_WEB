@@ -10,6 +10,8 @@ import time
 import math
 import statistics
 
+from structured_record import build_structured_record
+
 app = FastAPI(title="Klaro PaddleOCR API")
 
 
@@ -588,9 +590,13 @@ async def process_ocr(file: UploadFile = File(...)):
             if callable(data):
                 data = data()
 
-            recognition_texts = data["res"]["rec_texts"]
-            confidence_scores = data["res"]["rec_scores"]
-            text_words = data["res"].get("text_word", [])
+            result_data = data["res"]
+
+            recognition_texts = result_data["rec_texts"]
+            confidence_scores = result_data["rec_scores"]
+            text_words = result_data.get("text_word", [])
+            recognition_boxes = result_data.get("rec_boxes", [])
+            recognition_polygons = result_data.get("rec_polys", [])
 
             for index, text in enumerate(recognition_texts):
 
@@ -615,12 +621,30 @@ async def process_ocr(file: UploadFile = File(...)):
                         if word.strip()
                     ]
 
+                bounding_box = None
+
+                if index < len(recognition_boxes):
+                    bounding_box = recognition_boxes[index]
+
+                    if hasattr(bounding_box, "tolist"):
+                        bounding_box = bounding_box.tolist()
+
+                polygon = None
+
+                if index < len(recognition_polygons):
+                    polygon = recognition_polygons[index]
+
+                    if hasattr(polygon, "tolist"):
+                        polygon = polygon.tolist()
+
                 ocr_output.append({
                     "text": text,
                     "confidence": round(confidence, 2),
                     "status": status,
                     "flagged": status == "NEEDS_REVIEW",
-                    "words": words
+                    "words": words,
+                    "bounding_box": bounding_box,
+                    "polygon": polygon
                 })
 
         formatting_time = time.perf_counter() - formatting_start
@@ -733,7 +757,17 @@ async def process_ocr(file: UploadFile = File(...)):
         # ==========================================
         # API RESPONSE
         # ==========================================
+        # Use the original uploaded image for structured checkbox extraction.
+        # Keep OCR dimensions for text extraction.
+        ocr_width, ocr_height = get_image_dimensions(ocr_input_path)
 
+        # Use the original image for checkbox detection.
+        structured_output = build_structured_record(
+            ocr_output,
+            ocr_width,
+            ocr_height,
+            temporary_path
+        )
         return {
             "success": True,
             "filename": file.filename,
@@ -747,6 +781,8 @@ async def process_ocr(file: UploadFile = File(...)):
                     2
                 )
             },
+            "structured_record": structured_output["record"],
+            "unmapped_ocr_text": structured_output["unmapped_ocr_text"],
             "results": ocr_output
         }
 
